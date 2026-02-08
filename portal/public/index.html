@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini PaaS Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="mesh-layer" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+  </div>
+
+  <div class="page">
+    <header class="hero panel">
+      <div class="hero-copy">
+        <p class="eyebrow">Mini PaaS Control Plane</p>
+        <h1>Portal Dashboard</h1>
+        <p class="subtitle">템플릿 선택부터 운영까지 한 화면에서 끝내는 초보 친화형 배포 콘솔</p>
+        <div class="hero-pill-row">
+          <span class="hero-pill">Template-first</span>
+          <span class="hero-pill">One-click lifecycle</span>
+          <span class="hero-pill">Safe defaults</span>
+        </div>
+      </div>
+      <div class="auth-box panel-inset">
+        <p id="auth-state" class="auth-state">로그아웃 상태</p>
+        <form id="login-form" class="auth-form" novalidate>
+          <label for="login-username-input">Login ID</label>
+          <input id="login-username-input" type="text" value="admin" autocomplete="username" required>
+          <label for="login-password-input">Password</label>
+          <input id="login-password-input" type="password" value="admin" autocomplete="current-password" required>
+          <button id="login-btn" class="ghost-btn" type="submit">로그인</button>
+        </form>
+        <div id="session-panel" class="session-panel" hidden>
+          <p class="session-user">
+            <strong id="session-username">-</strong>
+            <span id="session-role">-</span>
+          </p>
+          <button id="logout-btn" class="ghost-btn" type="button">로그아웃</button>
+        </div>
+      </div>
+    </header>
+
+    <p id="status-banner" class="status-banner info">준비됨</p>
+
+    <section class="layout-grid">
+      <article class="panel create-panel">
+        <div class="panel-head">
+          <h2>앱 생성</h2>
+        </div>
+        <form id="create-form" novalidate>
+          <label for="userid-input">User ID</label>
+          <input id="userid-input" name="userid" type="text" placeholder="alice" required>
+
+          <label for="appname-input">App Name</label>
+          <input id="appname-input" name="appname" type="text" placeholder="diary" required>
+
+          <label for="template-input">Template ID</label>
+          <input id="template-input" name="templateId" type="text" value="diary-v1" required>
+
+          <label class="checkbox-row" for="enable-api-input">
+            <input id="enable-api-input" name="enableApi" type="checkbox" checked>
+            <span>SQLite API 활성화</span>
+          </label>
+
+          <p class="preview-text">
+            예상 주소:
+            <code id="domain-preview">userid-appname.my.domain.com</code>
+          </p>
+
+          <button class="primary-btn" type="submit">Create App</button>
+        </form>
+      </article>
+
+      <article class="panel control-panel">
+        <div class="panel-head">
+          <h2>운영 설정</h2>
+        </div>
+
+        <div class="chip-grid">
+          <div class="chip">
+            <span class="chip-label">PAAS_DOMAIN</span>
+            <strong id="domain-chip">-</strong>
+          </div>
+          <div class="chip">
+            <span class="chip-label">Limit</span>
+            <strong id="limit-chip">-</strong>
+          </div>
+          <div class="chip">
+            <span class="chip-label">Apps</span>
+            <strong id="app-count-chip">0</strong>
+          </div>
+        </div>
+
+        <label class="field-label" for="log-lines-input">로그 조회 라인 수</label>
+        <input id="log-lines-input" type="number" min="1" max="1000" value="120">
+
+        <label class="checkbox-row" for="keep-data-input">
+          <input id="keep-data-input" type="checkbox" checked>
+          <span>삭제 시 data 폴더 보존</span>
+        </label>
+
+        <button id="refresh-btn" class="ghost-btn" type="button">목록 새로고침</button>
+
+        <section id="password-panel" class="control-section" hidden>
+          <h3>초기 비밀번호 변경 필수</h3>
+          <form id="password-form" novalidate>
+            <label for="current-password-input">현재 비밀번호</label>
+            <input id="current-password-input" type="password" autocomplete="current-password" required>
+            <label for="new-password-input">새 비밀번호 (8자 이상)</label>
+            <input id="new-password-input" type="password" autocomplete="new-password" required>
+            <button id="change-password-btn" class="primary-btn" type="submit">비밀번호 변경</button>
+          </form>
+        </section>
+
+        <section id="api-keys-panel" class="control-section" hidden>
+          <h3>API Key 관리</h3>
+          <form id="create-api-key-form" novalidate>
+            <label for="api-key-name-input">키 이름</label>
+            <input id="api-key-name-input" type="text" placeholder="deploy-bot" maxlength="60">
+            <button id="create-api-key-btn" class="ghost-btn" type="submit">새 키 발급</button>
+          </form>
+          <p class="preview-text">
+            새 키:
+            <code id="new-api-key">(없음)</code>
+          </p>
+          <div id="api-key-list" class="api-key-list"></div>
+        </section>
+      </article>
+    </section>
+
+    <section class="panel app-panel">
+      <div class="panel-head">
+        <h2>배포된 앱</h2>
+      </div>
+      <p id="empty-state" class="empty-state">앱이 없습니다. 먼저 앱을 생성하세요.</p>
+      <div id="apps-container" class="apps-container"></div>
+    </section>
+
+    <section class="panel logs-panel">
+      <div class="panel-head">
+        <h2>로그</h2>
+        <span id="logs-title">앱을 선택하면 로그가 표시됩니다.</span>
+      </div>
+      <pre id="logs-output">No logs yet.</pre>
+    </section>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
