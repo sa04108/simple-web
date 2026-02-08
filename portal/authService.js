@@ -8,6 +8,8 @@ const bcrypt = require("bcryptjs");
 const Database = require("better-sqlite3");
 
 const ROLE_PAAS_ADMIN = "paas-admin";
+const ROLE_PAAS_USER = "paas-user";
+const USERNAME_REGEX = /^[a-z][a-z0-9]{2,19}$/;
 const SESSION_TOKEN_PREFIX = "sess";
 const API_KEY_TOKEN_PREFIX = "paas";
 
@@ -132,6 +134,18 @@ function createAuthService(options) {
       createdAt: row.createdAt || null,
       lastUsedAt: row.lastUsedAt || null,
       revokedAt: row.revokedAt || null
+    };
+  }
+
+  function normalizeUserRow(row) {
+    const role = String(row.role || "");
+    return {
+      id: Number(row.id),
+      username: String(row.username || ""),
+      role,
+      isAdmin: role === ROLE_PAAS_ADMIN,
+      createdAt: row.createdAt || null,
+      lastAccessAt: row.lastAccessAt || null
     };
   }
 
@@ -291,12 +305,100 @@ function createAuthService(options) {
     return next();
   }
 
+  function listUsers() {
+    const rows = statements.listUsersWithLastAccess.all();
+    return rows.map(normalizeUserRow);
+  }
+
+  function createUser(payload) {
+    const username = String(payload?.username || "").trim();
+    const password = String(payload?.password || "");
+    const isAdmin = normalizeBoolean(payload?.isAdmin, false);
+    const role = isAdmin ? ROLE_PAAS_ADMIN : ROLE_PAAS_USER;
+
+    if (!USERNAME_REGEX.test(username)) {
+      throw new AppError(400, "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/");
+    }
+    if (password.length < 8) {
+      throw new AppError(400, "password must be at least 8 characters");
+    }
+
+    const existing = statements.selectUserByUsername.get(username);
+    if (existing) {
+      throw new AppError(409, "Username already exists");
+    }
+
+    const createdAt = nowIso();
+    const passwordHash = bcrypt.hashSync(password, config.bcryptRounds);
+    try {
+      const result = statements.insertUser.run(
+        username,
+        passwordHash,
+        role,
+        1,
+        createdAt,
+        createdAt
+      );
+      const userId = Number(result.lastInsertRowid);
+      const createdUser = statements.selectUserById.get(userId);
+      return toPublicUser(createdUser);
+    } catch (error) {
+      if (error?.code === "SQLITE_CONSTRAINT_UNIQUE") {
+        throw new AppError(409, "Username already exists");
+      }
+      throw error;
+    }
+  }
+
+  function deleteUser(payload) {
+    const actorUserId = Number.parseInt(String(payload?.actorUserId || ""), 10);
+    const targetUserId = Number.parseInt(String(payload?.targetUserId || ""), 10);
+    const currentPassword = String(payload?.currentPassword || "");
+
+    if (!Number.isInteger(actorUserId) || actorUserId <= 0) {
+      throw new AppError(401, "Unauthorized");
+    }
+    if (!Number.isInteger(targetUserId) || targetUserId <= 0) {
+      throw new AppError(400, "Invalid user id");
+    }
+    if (!currentPassword) {
+      throw new AppError(400, "currentPassword is required");
+    }
+
+    const actor = statements.selectUserById.get(actorUserId);
+    if (!actor) {
+      throw new AppError(401, "Unauthorized");
+    }
+    if (!bcrypt.compareSync(currentPassword, actor.passwordHash)) {
+      throw new AppError(401, "Current password is incorrect");
+    }
+
+    const target = statements.selectUserById.get(targetUserId);
+    if (!target) {
+      throw new AppError(404, "User not found");
+    }
+    if (String(target.role || ROLE_PAAS_USER) === ROLE_PAAS_ADMIN) {
+      throw new AppError(403, "Admin users cannot be removed");
+    }
+
+    const result = statements.deleteUserById.run(targetUserId);
+    if (!result.changes) {
+      throw new AppError(404, "User not found");
+    }
+
+    return {
+      id: Number(target.id),
+      username: String(target.username || ""),
+      deleted: true
+    };
+  }
+
   function attachRoutes(app) {
     app.post("/auth/login", (req, res, next) => {
       try {
         const username = String(req.body?.username || "").trim();
         const password = String(req.body?.password || "");
-        if (!/^[a-z][a-z0-9]{2,19}$/.test(username)) {
+        if (!USERNAME_REGEX.test(username)) {
           throw new AppError(400, "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/");
         }
         if (!password) {
@@ -608,6 +710,29 @@ function createAuthService(options) {
       SET revoked_at = ?
       WHERE id = ? AND user_id = ? AND revoked_at IS NULL
     `);
+    statements.listUsersWithLastAccess = db.prepare(`
+      SELECT
+        u.id,
+        u.username,
+        u.role,
+        u.created_at AS createdAt,
+        MAX(COALESCE(s.last_used_at, s.created_at)) AS lastAccessAt
+      FROM users u
+      LEFT JOIN sessions s ON s.user_id = u.id
+      GROUP BY
+        u.id,
+        u.username,
+        u.role,
+        u.created_at
+      ORDER BY
+        CASE WHEN u.role = '${ROLE_PAAS_ADMIN}' THEN 0 ELSE 1 END ASC,
+        u.created_at ASC,
+        u.id ASC
+    `);
+    statements.deleteUserById = db.prepare(`
+      DELETE FROM users
+      WHERE id = ?
+    `);
 
     const admin = statements.selectUserByUsername.get("admin");
     if (!admin) {
@@ -632,9 +757,13 @@ function createAuthService(options) {
     init,
     attachRoutes,
     requireAnyAuth,
+    requireSessionAuth,
     requirePaasAdmin,
     requirePasswordUpdated,
     resolveSessionAuth,
+    listUsers,
+    createUser,
+    deleteUser,
     getPublicConfig,
     getDbPath: () => config.dbPath,
     isLegacyApiKeyEnabled: () => Boolean(config.legacyApiKey)

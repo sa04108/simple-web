@@ -721,6 +721,13 @@ app.use(
   authService.requirePaasAdmin,
   authService.requirePasswordUpdated
 );
+app.use(
+  "/users",
+  requireAdminHostAccess,
+  authService.requireSessionAuth,
+  authService.requirePaasAdmin,
+  authService.requirePasswordUpdated
+);
 
 app.post("/apps", async (req, res, next) => {
   try {
@@ -921,6 +928,55 @@ app.get("/apps/:userid/:appname/logs", async (req, res, next) => {
 });
 
 app.use("/apps", (_req, res) => {
+  return sendError(res, 404, "Not found");
+});
+
+app.get("/users", (_req, res, next) => {
+  try {
+    const users = authService.listUsers();
+    return sendOk(res, {
+      users,
+      total: users.length
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post("/users", (req, res, next) => {
+  try {
+    const username = String(req.body?.username || "").trim();
+    const password = String(req.body?.password || "");
+    const isAdmin = normalizeBoolean(req.body?.isAdmin, false);
+    const user = authService.createUser({
+      username,
+      password,
+      isAdmin
+    });
+    return sendOk(res, { user }, 201);
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete("/users/:id", (req, res, next) => {
+  try {
+    const targetUserId = Number.parseInt(String(req.params.id || ""), 10);
+    const currentPassword = String(req.body?.currentPassword || "");
+    const deletedUser = authService.deleteUser({
+      actorUserId: req.auth?.user?.id,
+      targetUserId,
+      currentPassword
+    });
+    return sendOk(res, {
+      user: deletedUser
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.use("/users", (_req, res) => {
   return sendError(res, 404, "Not found");
 });
 

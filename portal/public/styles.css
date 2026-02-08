@@ -321,13 +321,15 @@ body::before {
 }
 
 input,
+select,
 button {
   font: inherit;
 }
 
 input[type="text"],
 input[type="password"],
-input[type="number"] {
+input[type="number"],
+select {
   width: 100%;
   border: 1px solid rgba(33, 72, 110, 0.22);
   border-radius: 11px;
@@ -346,7 +348,8 @@ input[type="number"]::placeholder {
 
 input[type="text"]:focus,
 input[type="password"]:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,
+select:focus {
   border-color: rgba(42, 134, 241, 0.54);
   box-shadow: 0 0 0 4px rgba(42, 134, 241, 0.14);
   transform: translateY(-1px);
@@ -504,7 +507,8 @@ form label,
 
 .create-panel,
 .ops-panel,
-.app-panel {
+.app-panel,
+.users-panel {
   padding: 22px;
 }
 
@@ -718,6 +722,79 @@ code {
   color: var(--ink-soft);
 }
 
+.users-count {
+  font-size: 0.8rem;
+  color: #0c3f73;
+  border: 1px solid rgba(42, 134, 241, 0.24);
+  background: rgba(42, 134, 241, 0.1);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-weight: 700;
+}
+
+.users-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.users-add-btn {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+
+.users-table-wrap {
+  margin-top: 12px;
+  border: 1px solid rgba(25, 68, 108, 0.18);
+  border-radius: 12px;
+  overflow-x: auto;
+  background: rgba(248, 252, 255, 0.78);
+}
+
+.users-table {
+  width: 100%;
+  min-width: 620px;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  text-align: left;
+  padding: 11px 12px;
+  border-bottom: 1px solid rgba(25, 68, 108, 0.12);
+  font-size: 0.84rem;
+}
+
+.users-table th:last-child,
+.users-table td:last-child {
+  text-align: right;
+  width: 104px;
+}
+
+.users-table th {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: rgba(42, 134, 241, 0.08);
+}
+
+.users-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.users-remove-btn {
+  min-width: 64px;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+}
+
+.users-protected {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
 .apps-container {
   margin-top: 14px;
   display: grid;
@@ -863,6 +940,19 @@ code {
   font-size: 0.86rem;
 }
 
+.modal-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+}
+
+.modal-actions .ghost-btn,
+.modal-actions .primary-btn {
+  margin-top: 0;
+  width: auto;
+  flex: 1;
+}
+
 @keyframes panel-in {
   from {
     opacity: 0;
@@ -1001,7 +1091,8 @@ code {
 
   .create-panel,
   .ops-panel,
-  .app-panel {
+  .app-panel,
+  .users-panel {
     padding: 16px;
     border-radius: 18px;
   }
@@ -1039,6 +1130,11 @@ code {
     width: 100%;
   }
 
+  .users-head-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   #create-api-key-form {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -1046,6 +1142,10 @@ code {
 
   #create-api-key-btn {
     width: 100%;
+  }
+
+  .modal-actions {
+    flex-direction: column;
   }
 }
 

@@ -68,6 +68,7 @@ PAAS_DOMAIN=my.domain.com
 PAAS_ROOT=/paas
 PAAS_APPS_DIR=/paas/apps
 PAAS_TEMPLATES_DIR=/paas/templates
+PAAS_SCRIPTS_DIR=/paas/scripts
 
 # ── Portal ──
 PORTAL_PORT=3000
@@ -78,6 +79,15 @@ SESSION_COOKIE_NAME=paas_portal_session
 SESSION_TTL_HOURS=168
 PORTAL_COOKIE_SECURE=false
 BCRYPT_ROUNDS=10
+PORTAL_TRUST_PROXY=true
+
+# ── Host Split + Access List (선택) ──
+# true면 admin 로그인/관리 API를 admin host로 제한
+PORTAL_HOST_SPLIT_ENABLED=false
+PORTAL_PUBLIC_HOST=portal.my.domain.com
+PORTAL_ADMIN_HOST=portal-admin.my.domain.com
+# 쉼표(,)로 구분한 허용 IP 목록. 비우면 서버 측 IP allowlist 미적용
+PORTAL_ADMIN_ALLOWED_IPS=
 
 # ── 컨테이너 기본값 ──
 DEFAULT_MEM_LIMIT=256m
@@ -97,6 +107,7 @@ MAX_TOTAL_APPS=20
 
 - **모든 스크립트와 코드**는 하드코딩 대신 이 `.env`를 참조한다.
 - Portal(Express)은 시작 시 `dotenv`로 로드한다.
+- Portal은 기본적으로 `repoRoot/.env`를 로드하며, `PAAS_ENV_FILE`로 경로를 덮어쓸 수 있다.
 - Shell 스크립트는 `source /paas/.env` 또는 `--env-file`로 참조한다.
 - Docker Compose 템플릿에서는 `${VARIABLE}` 치환을 사용한다.
 
@@ -433,23 +444,34 @@ networks:
 > 1) 로그인 세션 쿠키 (`SESSION_COOKIE_NAME`)
 > 2) `X-API-Key: <발급된 키>` (자동화 호출용)
 > 3) `PORTAL_API_KEY`는 레거시 fallback (선택)
+>
+> 엔드포인트별 인증 범위:
+> - `/apps`: 세션 쿠키 또는 `X-API-Key`
+> - `/api-keys`, `/auth/me`, `/auth/change-password`: 세션 쿠키만 허용
 
 #### Auth API
 
 | Method | Path | Body | 동작 |
 |---|---|---|---|
 | `POST` | `/auth/login` | `{ username, password }` | 로그인 + 세션 쿠키 발급 |
-| `GET` | `/auth/me` | — | 현재 로그인 사용자 조회 |
+| `GET` | `/auth/me` | — | 현재 로그인 사용자 조회 (세션 전용) |
 | `POST` | `/auth/logout` | — | 로그아웃 + 세션 무효화 |
-| `POST` | `/auth/change-password` | `{ currentPassword, newPassword }` | 비밀번호 변경 |
+| `POST` | `/auth/change-password` | `{ currentPassword, newPassword }` | 비밀번호 변경 (세션 전용) |
+
+#### System API
+
+| Method | Path | Body | 동작 |
+|---|---|---|---|
+| `GET` | `/health` | — | 포털 헬스체크 |
+| `GET` | `/config` | — | 도메인/제한값/보안(host split) 설정 조회 |
 
 #### API Key API
 
 | Method | Path | Body | 동작 |
 |---|---|---|---|
-| `GET` | `/api-keys` | — | 내 API Key 목록 |
-| `POST` | `/api-keys` | `{ name? }` | 새 API Key 발급 (원문은 1회만 응답) |
-| `DELETE` | `/api-keys/:id` | — | API Key 폐기 |
+| `GET` | `/api-keys` | — | 내 API Key 목록 (세션 전용) |
+| `POST` | `/api-keys` | `{ name? }` | 새 API Key 발급 (세션 전용, 원문은 1회만 응답) |
+| `DELETE` | `/api-keys/:id` | — | API Key 폐기 (세션 전용) |
 
 #### App API
 
@@ -461,17 +483,25 @@ networks:
 | `POST` | `/apps/:userid/:appname/start` | — | 컨테이너 start |
 | `POST` | `/apps/:userid/:appname/stop` | — | 컨테이너 stop |
 | `POST` | `/apps/:userid/:appname/deploy` | — | deploy.sh 실행 |
-| `DELETE` | `/apps/:userid/:appname` | `{ keepData?: true }` | 앱 삭제 |
-| `GET` | `/apps/:userid/:appname/logs` | `?lines=100` | 로그 조회 |
+| `DELETE` | `/apps/:userid/:appname` | `{ keepData?: boolean }` | 앱 삭제 (`keepData` 기본값 `true`) |
+| `GET` | `/apps/:userid/:appname/logs` | `?lines=100` | 로그 조회 (`lines` 1~1000, 기본 100) |
 
 ### 인증 방식
 
 - 기본: `id/pw` 로그인 후 세션 쿠키 인증
 - 초기 부트스트랩 계정: `admin / admin` 자동 생성
-- `admin` 첫 로그인 시 비밀번호 변경 전까지 `/apps`, `/api-keys`는 `403 Password change required`
+- `/apps`, `/api-keys`는 `paas-admin` 권한이 필요
+- 세션 인증 기준으로 `mustChangePassword=true` 상태에서 `/apps`, `/api-keys`는 `403 Password change required`
+- `X-API-Key` 인증으로 `/apps` 호출 시에는 위 비밀번호 변경 강제가 적용되지 않는다
 - 자동화 호출: 로그인 후 발급한 API Key를 `X-API-Key`로 전달
 - `PORTAL_API_KEY`는 하위호환(레거시) 용도로만 사용 가능
 - 인증 불일치/누락은 `401 Unauthorized`
+
+### Host Split / Access List
+
+- `PORTAL_HOST_SPLIT_ENABLED=true`이면 `/apps`, `/api-keys`, `/auth/change-password`는 `PORTAL_ADMIN_HOST`에서만 허용
+- `admin` 계정 로그인(`POST /auth/login`)도 `PORTAL_ADMIN_HOST`에서만 허용
+- `PORTAL_ADMIN_ALLOWED_IPS`가 설정되면 admin host 요청에 서버 측 IP allowlist를 추가 적용
 
 ### 응답 형식
 
@@ -494,7 +524,7 @@ networks:
 ### 유효성 검증
 
 - `userid`, `appname`: 위 Naming Convention 정규식으로 검증
-- `templateId`: `/paas/templates/{templateId}` 존재 여부 확인
+- `templateId`: `/^[a-z0-9][a-z0-9-]{1,63}$/` 형식 + `/paas/templates/{templateId}` 존재 여부 확인
 - 앱 수 제한: `MAX_APPS_PER_USER`, `MAX_TOTAL_APPS` 초과 시 `429`
 
 ---

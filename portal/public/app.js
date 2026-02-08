@@ -4,6 +4,8 @@ const state = {
   domain: "my.domain.com",
   apps: [],
   apiKeys: [],
+  users: [],
+  pendingDeleteUser: null,
   user: null,
   refreshTimer: null,
   activeView: "dashboard",
@@ -23,10 +25,12 @@ const el = {
   gnbNav: document.querySelector(".gnb-nav"),
   gnbOverlay: document.getElementById("gnb-mobile-overlay"),
   gnbItems: Array.from(document.querySelectorAll(".gnb-item")),
+  gnbUsersBtn: document.getElementById("gnb-users-btn"),
   mobileMenuBtn: document.getElementById("mobile-menu-btn"),
   viewDashboard: document.getElementById("view-dashboard"),
   viewCreate: document.getElementById("view-create"),
   viewOps: document.getElementById("view-ops"),
+  viewUsers: document.getElementById("view-users"),
   statusBanner: document.getElementById("status-banner"),
   authState: document.getElementById("auth-state"),
   logoutBtn: document.getElementById("logout-btn"),
@@ -65,9 +69,33 @@ const el = {
   apiKeyNameInput: document.getElementById("api-key-name-input"),
   newApiKey: document.getElementById("new-api-key"),
   apiKeyList: document.getElementById("api-key-list"),
+  usersCount: document.getElementById("users-count"),
+  usersEmptyState: document.getElementById("users-empty-state"),
+  usersTableBody: document.getElementById("users-table-body"),
+  openCreateUserBtn: document.getElementById("open-create-user-btn"),
+  createUserModal: document.getElementById("create-user-modal"),
+  closeCreateUserBtn: document.getElementById("close-create-user-btn"),
+  cancelCreateUserBtn: document.getElementById("cancel-create-user-btn"),
+  createUserForm: document.getElementById("create-user-form"),
+  createUserError: document.getElementById("create-user-error"),
+  createUsernameInput: document.getElementById("create-username-input"),
+  createPasswordInput: document.getElementById("create-password-input"),
+  createPasswordConfirmInput: document.getElementById(
+    "create-password-confirm-input",
+  ),
+  createUserRoleInput: document.getElementById("create-user-role-input"),
+  deleteUserModal: document.getElementById("delete-user-modal"),
+  closeDeleteUserBtn: document.getElementById("close-delete-user-btn"),
+  cancelDeleteUserBtn: document.getElementById("cancel-delete-user-btn"),
+  deleteUserForm: document.getElementById("delete-user-form"),
+  deleteUserTarget: document.getElementById("delete-user-target"),
+  deleteUserError: document.getElementById("delete-user-error"),
+  deleteUserPasswordInput: document.getElementById("delete-user-password-input"),
 };
 
 let settingsBackdropPointerDown = false;
+let createUserBackdropPointerDown = false;
+let deleteUserBackdropPointerDown = false;
 
 function setBanner(message, type = "info") {
   el.statusBanner.className = `status-banner ${type}`;
@@ -96,6 +124,28 @@ function setSettingsError(message = "") {
   el.settingsError.textContent = normalized;
 }
 
+function setCreateUserError(message = "") {
+  const normalized = String(message || "").trim();
+  if (!normalized) {
+    el.createUserError.hidden = true;
+    el.createUserError.textContent = "";
+    return;
+  }
+  el.createUserError.hidden = false;
+  el.createUserError.textContent = normalized;
+}
+
+function setDeleteUserError(message = "") {
+  const normalized = String(message || "").trim();
+  if (!normalized) {
+    el.deleteUserError.hidden = true;
+    el.deleteUserError.textContent = "";
+    return;
+  }
+  el.deleteUserError.hidden = false;
+  el.deleteUserError.textContent = normalized;
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -109,12 +159,20 @@ function isLoggedIn() {
   return Boolean(state.user);
 }
 
+function isAdminUser() {
+  return String(state.user?.role || "") === "paas-admin";
+}
+
 function isPasswordLocked() {
   return Boolean(state.user?.mustChangePassword);
 }
 
 function canManageApps() {
   return isLoggedIn() && !isPasswordLocked();
+}
+
+function canManageUsers() {
+  return canManageApps() && isAdminUser();
 }
 
 function getAdminAccessHint() {
@@ -139,13 +197,14 @@ function syncDomainPreview() {
 }
 
 function switchView(viewName) {
-  const views = ["dashboard", "create", "ops"];
+  const views = ["dashboard", "create", "ops", "users"];
   const nextView = views.includes(viewName) ? viewName : "dashboard";
   state.activeView = nextView;
 
   el.viewDashboard.hidden = nextView !== "dashboard";
   el.viewCreate.hidden = nextView !== "create";
   el.viewOps.hidden = nextView !== "ops";
+  el.viewUsers.hidden = nextView !== "users";
 
   el.gnbItems.forEach((item) => {
     const isActive = item.dataset.view === nextView;
@@ -170,6 +229,14 @@ function toggleMobileMenu() {
   el.gnbOverlay.classList.toggle("open");
 }
 
+function syncModalOpenState() {
+  const hasOpenModal =
+    !el.settingsModal.hidden ||
+    !el.createUserModal.hidden ||
+    !el.deleteUserModal.hidden;
+  document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
 function switchTab(tabName) {
   const nextTab = tabName === "logs" ? "logs" : "ops";
   state.activeTab = nextTab;
@@ -190,15 +257,66 @@ function openSettingsModal() {
   settingsBackdropPointerDown = false;
   setSettingsError("");
   el.settingsModal.hidden = false;
-  document.body.classList.add("modal-open");
+  syncModalOpenState();
   el.currentPasswordInput.focus();
 }
 
 function closeSettingsModal() {
   settingsBackdropPointerDown = false;
   el.settingsModal.hidden = true;
-  document.body.classList.remove("modal-open");
+  syncModalOpenState();
   setSettingsError("");
+}
+
+function openCreateUserModal() {
+  if (!canManageUsers()) {
+    return;
+  }
+  createUserBackdropPointerDown = false;
+  setCreateUserError("");
+  el.createUserModal.hidden = false;
+  syncModalOpenState();
+  el.createUsernameInput.focus();
+}
+
+function closeCreateUserModal({ resetForm = false } = {}) {
+  createUserBackdropPointerDown = false;
+  el.createUserModal.hidden = true;
+  setCreateUserError("");
+  if (resetForm) {
+    el.createUserForm.reset();
+    el.createUserRoleInput.value = "user";
+  }
+  syncModalOpenState();
+}
+
+function openDeleteUserModal(targetUser) {
+  if (!canManageUsers()) {
+    return;
+  }
+  state.pendingDeleteUser = targetUser || null;
+  if (!state.pendingDeleteUser) {
+    return;
+  }
+  deleteUserBackdropPointerDown = false;
+  setDeleteUserError("");
+  el.deleteUserPasswordInput.value = "";
+  el.deleteUserTarget.textContent = `'${state.pendingDeleteUser.username}' 사용자를 제거합니다.`;
+  el.deleteUserModal.hidden = false;
+  syncModalOpenState();
+  el.deleteUserPasswordInput.focus();
+}
+
+function closeDeleteUserModal({ resetForm = false } = {}) {
+  deleteUserBackdropPointerDown = false;
+  el.deleteUserModal.hidden = true;
+  setDeleteUserError("");
+  if (resetForm) {
+    state.pendingDeleteUser = null;
+    el.deleteUserPasswordInput.value = "";
+    el.deleteUserTarget.textContent = "삭제할 사용자를 확인하세요.";
+  }
+  syncModalOpenState();
 }
 
 async function apiFetch(path, options = {}) {
@@ -349,15 +467,74 @@ function renderApiKeys() {
     .join("");
 }
 
+function renderUsers(users) {
+  if (!canManageUsers()) {
+    el.usersCount.textContent = "0명";
+    el.usersTableBody.innerHTML = "";
+    el.usersEmptyState.hidden = false;
+    el.openCreateUserBtn.disabled = true;
+    if (!isLoggedIn()) {
+      el.usersEmptyState.textContent = "로그인하면 사용자 목록을 조회할 수 있습니다.";
+    } else if (isPasswordLocked()) {
+      el.usersEmptyState.textContent =
+        "비밀번호를 변경한 뒤 사용자 목록을 조회할 수 있습니다.";
+    } else {
+      el.usersEmptyState.textContent =
+        "관리자 계정에서만 사용자 목록을 조회할 수 있습니다.";
+    }
+    return;
+  }
+
+  el.openCreateUserBtn.disabled = false;
+  el.usersCount.textContent = `${users.length}명`;
+  if (!users.length) {
+    el.usersTableBody.innerHTML = "";
+    el.usersEmptyState.hidden = false;
+    el.usersEmptyState.textContent = "등록된 사용자가 없습니다.";
+    return;
+  }
+
+  el.usersEmptyState.hidden = true;
+  el.usersTableBody.innerHTML = users
+    .map((item) => {
+      const safeUsername = escapeHtml(item.username || "-");
+      const safeAdmin = escapeHtml(item.isAdmin ? "예" : "아니오");
+      const safeCreatedAt = escapeHtml(formatDate(item.createdAt));
+      const safeLastAccessAt = escapeHtml(formatDate(item.lastAccessAt));
+      const canRemove = !item.isAdmin;
+      const removeButton = canRemove
+        ? `<button class="action-btn danger users-remove-btn" data-action="remove-user" data-id="${item.id}" data-username="${safeUsername}" type="button">제거</button>`
+        : `<span class="users-protected">-</span>`;
+      return `
+        <tr>
+          <td>${safeUsername}</td>
+          <td>${safeAdmin}</td>
+          <td>${safeCreatedAt}</td>
+          <td>${safeLastAccessAt}</td>
+          <td>${removeButton}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
 function updateAuthUi() {
   if (!isLoggedIn()) {
     el.authState.textContent = "인증 필요";
     el.logoutBtn.hidden = true;
     el.settingsBtn.hidden = true;
+    el.gnbUsersBtn.hidden = true;
     el.passwordRequiredNote.hidden = true;
     el.apiKeysPanel.hidden = true;
+    state.users = [];
+    renderUsers([]);
+    if (state.activeView === "users") {
+      switchView("dashboard");
+    }
     applyAccessState();
     closeSettingsModal();
+    closeCreateUserModal({ resetForm: true });
+    closeDeleteUserModal({ resetForm: true });
     return;
   }
 
@@ -365,8 +542,16 @@ function updateAuthUi() {
   el.authState.textContent = `${state.user.username} (${state.user.role})${suffix}`;
   el.logoutBtn.hidden = false;
   el.settingsBtn.hidden = false;
+  el.gnbUsersBtn.hidden = !canManageUsers();
   el.passwordRequiredNote.hidden = !isPasswordLocked();
   el.apiKeysPanel.hidden = isPasswordLocked();
+  if (el.gnbUsersBtn.hidden && state.activeView === "users") {
+    switchView("dashboard");
+  }
+  if (!canManageUsers()) {
+    closeCreateUserModal({ resetForm: true });
+    closeDeleteUserModal({ resetForm: true });
+  }
   applyAccessState();
 }
 
@@ -385,6 +570,7 @@ function startAutoRefresh() {
   state.refreshTimer = setInterval(async () => {
     try {
       await loadApps();
+      await loadUsers();
     } catch (error) {
       await handleRequestError(error);
     }
@@ -396,8 +582,10 @@ async function handleRequestError(error) {
     state.user = null;
     state.apps = [];
     state.apiKeys = [];
+    state.users = [];
     renderApps([]);
     renderApiKeys();
+    renderUsers([]);
     updateAuthUi();
     stopAutoRefresh();
     setBanner("세션이 만료되었습니다. 로그인 페이지로 이동합니다.", "error");
@@ -485,9 +673,21 @@ async function loadApiKeys() {
   renderApiKeys();
 }
 
+async function loadUsers() {
+  if (!canManageUsers()) {
+    state.users = [];
+    renderUsers([]);
+    return;
+  }
+  const data = await apiFetch("/users");
+  state.users = data.users || [];
+  renderUsers(state.users);
+}
+
 async function refreshDashboardData() {
   await loadApps();
   await loadApiKeys();
+  await loadUsers();
   if (canManageApps()) {
     startAutoRefresh();
   } else {
@@ -645,11 +845,34 @@ el.logoutBtn.addEventListener("click", async () => {
 
 el.settingsBtn.addEventListener("click", openSettingsModal);
 el.openSettingsBtn.addEventListener("click", openSettingsModal);
+el.openCreateUserBtn.addEventListener("click", openCreateUserModal);
 
 el.closeSettingsBtn.addEventListener("click", (event) => {
   event.preventDefault();
   event.stopPropagation();
   closeSettingsModal();
+});
+
+el.closeCreateUserBtn.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeCreateUserModal({ resetForm: true });
+});
+
+el.cancelCreateUserBtn.addEventListener("click", (event) => {
+  event.preventDefault();
+  closeCreateUserModal({ resetForm: true });
+});
+
+el.closeDeleteUserBtn.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeDeleteUserModal({ resetForm: true });
+});
+
+el.cancelDeleteUserBtn.addEventListener("click", (event) => {
+  event.preventDefault();
+  closeDeleteUserModal({ resetForm: true });
 });
 
 el.settingsModal.addEventListener("mousedown", (event) => {
@@ -666,12 +889,163 @@ el.settingsModal.addEventListener("click", (event) => {
   settingsBackdropPointerDown = false;
 });
 
-document.addEventListener("keydown", (event) => {
+el.createUserModal.addEventListener("mousedown", (event) => {
+  createUserBackdropPointerDown = event.target === el.createUserModal;
+});
+
+el.createUserModal.addEventListener("click", (event) => {
   if (
-    (event.key === "Escape" || event.key === "Esc") &&
-    !el.settingsModal.hidden
+    event.target === el.createUserModal &&
+    createUserBackdropPointerDown
   ) {
-    closeSettingsModal();
+    closeCreateUserModal({ resetForm: true });
+  }
+  createUserBackdropPointerDown = false;
+});
+
+el.deleteUserModal.addEventListener("mousedown", (event) => {
+  deleteUserBackdropPointerDown = event.target === el.deleteUserModal;
+});
+
+el.deleteUserModal.addEventListener("click", (event) => {
+  if (
+    event.target === el.deleteUserModal &&
+    deleteUserBackdropPointerDown
+  ) {
+    closeDeleteUserModal({ resetForm: true });
+  }
+  deleteUserBackdropPointerDown = false;
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" || event.key === "Esc") {
+    if (!el.deleteUserModal.hidden) {
+      closeDeleteUserModal({ resetForm: true });
+      return;
+    }
+    if (!el.createUserModal.hidden) {
+      closeCreateUserModal({ resetForm: true });
+      return;
+    }
+    if (!el.settingsModal.hidden) {
+      closeSettingsModal();
+    }
+  }
+});
+
+el.usersTableBody.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-action='remove-user']");
+  if (!button) {
+    return;
+  }
+  if (!canManageUsers()) {
+    return;
+  }
+  const id = Number.parseInt(button.dataset.id || "", 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return;
+  }
+  const username = String(button.dataset.username || "").trim() || `user-${id}`;
+  openDeleteUserModal({ id, username });
+});
+
+el.createUserForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setCreateUserError("");
+
+  if (!canManageUsers()) {
+    setCreateUserError("관리자 계정에서만 사용자 추가가 가능합니다.");
+    return;
+  }
+
+  const username = el.createUsernameInput.value.trim();
+  const password = el.createPasswordInput.value;
+  const passwordConfirm = el.createPasswordConfirmInput.value;
+  const roleValue = el.createUserRoleInput.value;
+
+  if (!username || !password || !passwordConfirm) {
+    setCreateUserError("username, password, password confirm을 입력하세요.");
+    return;
+  }
+  if (password !== passwordConfirm) {
+    setCreateUserError("password와 password confirm이 일치하지 않습니다.");
+    return;
+  }
+  if (password.length < 8) {
+    setCreateUserError("password는 8자 이상이어야 합니다.");
+    return;
+  }
+
+  try {
+    const isAdmin = roleValue === "admin";
+    const data = await apiFetch("/users", {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        password,
+        isAdmin,
+      }),
+    });
+    closeCreateUserModal({ resetForm: true });
+    await loadUsers();
+    setBanner(`사용자 생성 완료: ${data.user.username}`, "success");
+  } catch (error) {
+    if (error?.status === 401 || error?.status === 403) {
+      await handleRequestError(error);
+      return;
+    }
+    setCreateUserError(
+      normalizeErrorMessage(error, "사용자 생성 중 오류가 발생했습니다."),
+    );
+  }
+});
+
+el.deleteUserForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setDeleteUserError("");
+
+  if (!canManageUsers()) {
+    setDeleteUserError("관리자 계정에서만 사용자 제거가 가능합니다.");
+    return;
+  }
+  if (!state.pendingDeleteUser?.id) {
+    setDeleteUserError("제거할 사용자를 다시 선택하세요.");
+    return;
+  }
+
+  const currentPassword = el.deleteUserPasswordInput.value;
+  if (!currentPassword) {
+    setDeleteUserError("현재 admin 비밀번호를 입력하세요.");
+    return;
+  }
+
+  try {
+    const targetUser = state.pendingDeleteUser;
+    await apiFetch(`/users/${targetUser.id}`, {
+      method: "DELETE",
+      body: JSON.stringify({
+        currentPassword,
+      }),
+    });
+    closeDeleteUserModal({ resetForm: true });
+    await loadUsers();
+    setBanner(`사용자 제거 완료: ${targetUser.username}`, "success");
+  } catch (error) {
+    const message = normalizeErrorMessage(
+      error,
+      "사용자 제거 중 오류가 발생했습니다.",
+    );
+    const isCurrentPasswordMismatch =
+      error?.status === 401 && /^current password is incorrect$/i.test(message);
+    if (error?.status === 401 && !isCurrentPasswordMismatch) {
+      await handleRequestError(error);
+      return;
+    }
+    if (error?.status === 403 && isPasswordLocked()) {
+      await handleRequestError(error);
+      return;
+    }
+    setDeleteUserError(message);
   }
 });
 
@@ -746,7 +1120,8 @@ el.apiKeyList.addEventListener("click", async (event) => {
 el.refreshBtn.addEventListener("click", async () => {
   try {
     await loadApps();
-    setBanner("앱 목록 갱신 완료", "success");
+    await loadUsers();
+    setBanner("데이터 갱신 완료", "success");
   } catch (error) {
     await handleRequestError(error);
   }

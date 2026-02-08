@@ -38,6 +38,10 @@
           <svg class="gnb-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.8 7.8 0 0 0 .05-.94 7.8 7.8 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.2 7.2 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54a7.2 7.2 0 0 0-1.62.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58a7.8 7.8 0 0 0-.05.94 7.8 7.8 0 0 0 .05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39-.96c.5.39 1.04.7 1.62.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.24 1.12-.55 1.62-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58Z"/></svg>
           <span>운영 센터</span>
         </button>
+        <button id="gnb-users-btn" class="gnb-item" type="button" data-view="users" hidden>
+          <svg class="gnb-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 11c1.66 0 2.99-1.57 2.99-3.5S17.66 4 16 4s-3 1.57-3 3.5S14.34 11 16 11zm-8 0c1.66 0 2.99-1.57 2.99-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.94 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+          <span>유저 관리</span>
+        </button>
       </nav>
       <button id="mobile-menu-btn" class="icon-btn gnb-hamburger" type="button" aria-label="메뉴">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
@@ -166,6 +170,37 @@
           </section>
         </article>
       </section>
+
+      <section id="view-users" class="view-section" hidden>
+        <header class="view-header">
+          <h2>유저 관리</h2>
+          <p class="view-subtitle">username, 권한, 가입일자, 접속일자를 확인합니다.</p>
+        </header>
+        <article class="panel users-panel">
+          <div class="panel-head">
+            <h3>사용자 목록</h3>
+            <div class="users-head-actions">
+              <span id="users-count" class="users-count">0명</span>
+              <button id="open-create-user-btn" class="ghost-btn users-add-btn" type="button">추가</button>
+            </div>
+          </div>
+          <p id="users-empty-state" class="empty-state">등록된 사용자가 없습니다.</p>
+          <div class="users-table-wrap">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th scope="col">username</th>
+                  <th scope="col">admin 권한 여부</th>
+                  <th scope="col">가입일자</th>
+                  <th scope="col">접속일자</th>
+                  <th scope="col">제거</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
     </main>
   </div>
 
@@ -187,6 +222,83 @@
         <label for="new-password-input">새 비밀번호 (8자 이상)</label>
         <input id="new-password-input" type="password" autocomplete="new-password" required>
         <button id="change-password-btn" class="primary-btn" type="submit">비밀번호 변경</button>
+      </form>
+    </section>
+  </div>
+
+  <div id="create-user-modal" class="modal-backdrop" hidden>
+    <section class="modal-card panel-inset" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+      <div class="modal-head">
+        <h2 id="create-user-title">유저 추가</h2>
+        <button id="close-create-user-btn" class="icon-btn close-icon-btn" type="button" aria-label="유저 추가 닫기">
+          <span aria-hidden="true">x</span>
+        </button>
+      </div>
+      <p class="modal-description">새 계정을 생성합니다. username은 소문자 영문/숫자 3~20자 형식입니다.</p>
+      <p id="create-user-error" class="modal-error" role="alert" hidden></p>
+      <form id="create-user-form" novalidate>
+        <label for="create-username-input">username</label>
+        <input
+          id="create-username-input"
+          type="text"
+          placeholder="alice"
+          autocomplete="username"
+          maxlength="20"
+          required
+        >
+        <label for="create-password-input">password</label>
+        <input
+          id="create-password-input"
+          type="password"
+          placeholder="8자 이상 비밀번호"
+          autocomplete="new-password"
+          required
+        >
+        <label for="create-password-confirm-input">password confirm</label>
+        <input
+          id="create-password-confirm-input"
+          type="password"
+          placeholder="비밀번호를 다시 입력하세요"
+          autocomplete="new-password"
+          required
+        >
+        <label for="create-user-role-input">권한</label>
+        <select id="create-user-role-input">
+          <option value="user">일반 사용자</option>
+          <option value="admin">관리자</option>
+        </select>
+        <div class="modal-actions">
+          <button id="cancel-create-user-btn" class="ghost-btn" type="button">취소</button>
+          <button id="submit-create-user-btn" class="primary-btn" type="submit">확인</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <div id="delete-user-modal" class="modal-backdrop" hidden>
+    <section class="modal-card panel-inset" role="dialog" aria-modal="true" aria-labelledby="delete-user-title">
+      <div class="modal-head">
+        <h2 id="delete-user-title">사용자 제거</h2>
+        <button id="close-delete-user-btn" class="icon-btn close-icon-btn" type="button" aria-label="사용자 제거 닫기">
+          <span aria-hidden="true">x</span>
+        </button>
+      </div>
+      <p id="delete-user-target" class="modal-description">삭제할 사용자를 확인하세요.</p>
+      <p class="modal-description">현재 로그인한 admin 비밀번호를 입력해야 제거할 수 있습니다.</p>
+      <p id="delete-user-error" class="modal-error" role="alert" hidden></p>
+      <form id="delete-user-form" novalidate>
+        <label for="delete-user-password-input">현재 admin 비밀번호</label>
+        <input
+          id="delete-user-password-input"
+          type="password"
+          placeholder="현재 로그인한 admin 비밀번호"
+          autocomplete="current-password"
+          required
+        >
+        <div class="modal-actions">
+          <button id="cancel-delete-user-btn" class="ghost-btn" type="button">취소</button>
+          <button id="submit-delete-user-btn" class="action-btn danger" type="submit">제거</button>
+        </div>
       </form>
     </section>
   </div>
