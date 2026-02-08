@@ -250,6 +250,14 @@ function createAuthService(options) {
     return null;
   }
 
+  function resolveSessionAuth(req) {
+    const sessionToken = parseCookieValue(req, config.sessionCookieName);
+    if (!sessionToken) {
+      return null;
+    }
+    return authenticateSession(sessionToken);
+  }
+
   function requireAnyAuth(req, res, next) {
     const auth = resolveAnyAuth(req);
     if (!auth) {
@@ -260,12 +268,7 @@ function createAuthService(options) {
   }
 
   function requireSessionAuth(req, res, next) {
-    const sessionToken = parseCookieValue(req, config.sessionCookieName);
-    if (!sessionToken) {
-      clearSessionCookie(res);
-      return sendError(res, 401, "Unauthorized");
-    }
-    const auth = authenticateSession(sessionToken);
+    const auth = resolveSessionAuth(req);
     if (!auth) {
       clearSessionCookie(res);
       return sendError(res, 401, "Unauthorized");
@@ -631,6 +634,7 @@ function createAuthService(options) {
     requireAnyAuth,
     requirePaasAdmin,
     requirePasswordUpdated,
+    resolveSessionAuth,
     getPublicConfig,
     getDbPath: () => config.dbPath,
     isLegacyApiKeyEnabled: () => Boolean(config.legacyApiKey)

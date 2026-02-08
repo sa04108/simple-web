@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mini PaaS Portal Login</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="mesh-layer" aria-hidden="true">
+    <span class="orb orb-a"></span>
+    <span class="orb orb-b"></span>
+    <span class="orb orb-c"></span>
+  </div>
+
+  <div class="page auth-page">
+    <section class="panel login-view auth-standalone">
+      <div class="panel-head">
+        <h2>Portal 로그인</h2>
+      </div>
+      <p class="login-description">로그인 후 자동으로 대시보드로 이동합니다.</p>
+      <p id="auth-host-hint" class="login-description" hidden></p>
+      <p id="status-banner" class="status-banner info">로그인 정보를 입력하세요.</p>
+      <form id="login-form" class="auth-form" novalidate>
+        <label for="login-username-input">Login ID</label>
+        <input id="login-username-input" type="text" placeholder="아이디 입력" autocomplete="username" required>
+        <label for="login-password-input">Password</label>
+        <input id="login-password-input" type="password" placeholder="비밀번호 입력" autocomplete="current-password" required>
+        <button id="login-btn" class="primary-btn" type="submit">로그인</button>
+      </form>
+    </section>
+  </div>
+
+  <script src="./auth.js"></script>
+</body>
+</html>

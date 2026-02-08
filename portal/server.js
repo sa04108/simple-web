@@ -31,7 +31,14 @@ const config = {
   PORTAL_COOKIE_SECURE: normalizeBoolean(process.env.PORTAL_COOKIE_SECURE, false),
   BCRYPT_ROUNDS: toPositiveInt(process.env.BCRYPT_ROUNDS, 10),
   MAX_APPS_PER_USER: toPositiveInt(process.env.MAX_APPS_PER_USER, 5),
-  MAX_TOTAL_APPS: toPositiveInt(process.env.MAX_TOTAL_APPS, 20)
+  MAX_TOTAL_APPS: toPositiveInt(process.env.MAX_TOTAL_APPS, 20),
+  PORTAL_TRUST_PROXY: normalizeBoolean(process.env.PORTAL_TRUST_PROXY, true),
+  PORTAL_HOST_SPLIT_ENABLED: normalizeBoolean(process.env.PORTAL_HOST_SPLIT_ENABLED, false),
+  PORTAL_PUBLIC_HOST: normalizeHost(process.env.PORTAL_PUBLIC_HOST || ""),
+  PORTAL_ADMIN_HOST: normalizeHost(process.env.PORTAL_ADMIN_HOST || ""),
+  PORTAL_ADMIN_ALLOWED_IPS: parseCsvList(process.env.PORTAL_ADMIN_ALLOWED_IPS || "").map(
+    normalizeIp
+  )
 };
 
 const USER_ID_REGEX = /^[a-z][a-z0-9]{2,19}$/;
@@ -71,6 +78,50 @@ function normalizeBoolean(value, fallbackValue = false) {
   return fallbackValue;
 }
 
+function parseCsvList(value) {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function normalizeHost(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) {
+    return "";
+  }
+
+  let host = raw.replace(/^https?:\/\//, "").split("/")[0];
+  if (host.startsWith("[")) {
+    const endBracket = host.indexOf("]");
+    if (endBracket !== -1) {
+      host = host.slice(1, endBracket);
+      return host;
+    }
+  }
+
+  const colonIndex = host.indexOf(":");
+  if (colonIndex !== -1) {
+    host = host.slice(0, colonIndex);
+  }
+  return host;
+}
+
+function normalizeIp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (raw.startsWith("::ffff:")) {
+    return raw.slice(7);
+  }
+  return raw;
+}
+
 function sendOk(res, data = {}, statusCode = 200) {
   return res.status(statusCode).json({
     ok: true,
@@ -83,6 +134,182 @@ function sendError(res, statusCode, message) {
     ok: false,
     error: message
   });
+}
+
+function getRequestHost(req) {
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "")
+    .split(",")[0]
+    .trim();
+  const directHost = String(req.headers.host || "").trim();
+  return normalizeHost(forwardedHost || directHost || req.hostname || "");
+}
+
+function getClientIp(req) {
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "")
+    .split(",")[0]
+    .trim();
+  return normalizeIp(forwardedFor || req.ip || req.socket?.remoteAddress || "");
+}
+
+function isAdminIpAllowed(clientIp) {
+  if (!config.PORTAL_ADMIN_ALLOWED_IPS.length) {
+    return true;
+  }
+  return config.PORTAL_ADMIN_ALLOWED_IPS.includes(normalizeIp(clientIp));
+}
+
+function getAdminAccessContext(req) {
+  const requestHost = getRequestHost(req);
+  const clientIp = getClientIp(req);
+
+  if (!config.PORTAL_HOST_SPLIT_ENABLED) {
+    return {
+      hostSplitEnabled: false,
+      requestHost,
+      clientIp,
+      isAdminHost: true,
+      ipAllowed: true,
+      allowed: true,
+      reason: null
+    };
+  }
+
+  if (!config.PORTAL_ADMIN_HOST) {
+    return {
+      hostSplitEnabled: true,
+      requestHost,
+      clientIp,
+      isAdminHost: false,
+      ipAllowed: false,
+      allowed: false,
+      reason: "admin-host-not-configured"
+    };
+  }
+
+  const isAdminHost = requestHost === config.PORTAL_ADMIN_HOST;
+  const ipAllowed = isAdminIpAllowed(clientIp);
+  const allowed = isAdminHost && ipAllowed;
+
+  let reason = null;
+  if (!isAdminHost) {
+    reason = "wrong-host";
+  } else if (!ipAllowed) {
+    reason = "ip-not-allowed";
+  }
+
+  return {
+    hostSplitEnabled: true,
+    requestHost,
+    clientIp,
+    isAdminHost,
+    ipAllowed,
+    allowed,
+    reason
+  };
+}
+
+function getHostType(req) {
+  const requestHost = getRequestHost(req);
+  if (!requestHost) {
+    return "unknown";
+  }
+  if (config.PORTAL_ADMIN_HOST && requestHost === config.PORTAL_ADMIN_HOST) {
+    return "admin";
+  }
+  if (config.PORTAL_PUBLIC_HOST && requestHost === config.PORTAL_PUBLIC_HOST) {
+    return "public";
+  }
+  if (config.PORTAL_ADMIN_HOST && requestHost !== config.PORTAL_ADMIN_HOST) {
+    return "public";
+  }
+  return "unknown";
+}
+
+function canAccessDashboardUi(req) {
+  const sessionAuth = authService.resolveSessionAuth(req);
+  if (!sessionAuth) {
+    return false;
+  }
+  if (!config.PORTAL_HOST_SPLIT_ENABLED) {
+    return true;
+  }
+  return getAdminAccessContext(req).allowed;
+}
+
+function requireAdminHostAccess(req, _res, next) {
+  if (!config.PORTAL_HOST_SPLIT_ENABLED) {
+    return next();
+  }
+
+  const access = getAdminAccessContext(req);
+  if (access.allowed) {
+    return next();
+  }
+
+  if (access.reason === "wrong-host") {
+    return next(
+      new AppError(
+        403,
+        `Admin access is only available via ${config.PORTAL_ADMIN_HOST}`
+      )
+    );
+  }
+  if (access.reason === "ip-not-allowed") {
+    return next(new AppError(403, "Access denied by admin allowlist"));
+  }
+  return next(
+    new AppError(
+      500,
+      "Admin host split is enabled but PORTAL_ADMIN_HOST is not configured"
+    )
+  );
+}
+
+function blockAdminLoginFromPublicHost(req, _res, next) {
+  if (!config.PORTAL_HOST_SPLIT_ENABLED) {
+    return next();
+  }
+  const username = String(req.body?.username || "")
+    .trim()
+    .toLowerCase();
+  if (username !== "admin") {
+    return next();
+  }
+
+  const access = getAdminAccessContext(req);
+  if (access.allowed) {
+    return next();
+  }
+
+  if (access.reason === "wrong-host") {
+    return next(
+      new AppError(
+        403,
+        `admin login is only available via ${config.PORTAL_ADMIN_HOST}`
+      )
+    );
+  }
+  if (access.reason === "ip-not-allowed") {
+    return next(new AppError(403, "admin login denied by admin allowlist"));
+  }
+  return next(
+    new AppError(
+      500,
+      "Admin host split is enabled but PORTAL_ADMIN_HOST is not configured"
+    )
+  );
+}
+
+function validateHostAccessConfig() {
+  if (!config.PORTAL_HOST_SPLIT_ENABLED) {
+    return;
+  }
+  if (!config.PORTAL_ADMIN_HOST) {
+    throw new Error("PORTAL_ADMIN_HOST is required when PORTAL_HOST_SPLIT_ENABLED=true");
+  }
+  if (config.PORTAL_PUBLIC_HOST && config.PORTAL_PUBLIC_HOST === config.PORTAL_ADMIN_HOST) {
+    throw new Error("PORTAL_PUBLIC_HOST and PORTAL_ADMIN_HOST must be different");
+  }
 }
 
 const authService = createAuthService({
@@ -420,9 +647,12 @@ async function ensureAppExists(userid, appname) {
 }
 
 const app = express();
+const publicDir = path.join(__dirname, "public");
+const dashboardPagePath = path.join(publicDir, "index.html");
+const authPagePath = path.join(publicDir, "auth.html");
 
+app.set("trust proxy", config.PORTAL_TRUST_PROXY);
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(path.join(__dirname, "public")));
 
 app.get("/health", (_req, res) => {
   return sendOk(res, {
@@ -432,7 +662,8 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.get("/config", (_req, res) => {
+app.get("/config", (req, res) => {
+  const access = getAdminAccessContext(req);
   return sendOk(res, {
     domain: config.PAAS_DOMAIN,
     limits: {
@@ -443,13 +674,49 @@ app.get("/config", (_req, res) => {
       templateId: "diary-v1",
       adminId: "admin"
     },
-    auth: authService.getPublicConfig()
+    auth: authService.getPublicConfig(),
+    security: {
+      hostSplitEnabled: config.PORTAL_HOST_SPLIT_ENABLED,
+      publicHost: config.PORTAL_PUBLIC_HOST || null,
+      adminHost: config.PORTAL_ADMIN_HOST || null,
+      adminAccessListEnabled: config.PORTAL_ADMIN_ALLOWED_IPS.length > 0,
+      currentHost: getRequestHost(req) || null,
+      currentHostType: getHostType(req),
+      adminAccessAllowedForRequest: access.allowed
+    }
   });
 });
 
+app.get("/", (req, res) => {
+  if (!canAccessDashboardUi(req)) {
+    return res.redirect("/auth");
+  }
+  return res.sendFile(dashboardPagePath);
+});
+
+app.get("/index.html", (req, res) => {
+  if (!canAccessDashboardUi(req)) {
+    return res.redirect("/auth");
+  }
+  return res.sendFile(dashboardPagePath);
+});
+
+app.get("/auth", (req, res) => {
+  if (canAccessDashboardUi(req)) {
+    return res.redirect("/");
+  }
+  return res.sendFile(authPagePath);
+});
+
+app.use(express.static(publicDir, { index: false }));
+
+app.use("/auth/login", blockAdminLoginFromPublicHost);
+app.use("/auth/change-password", requireAdminHostAccess);
+app.use("/api-keys", requireAdminHostAccess);
 authService.attachRoutes(app);
 app.use(
   "/apps",
+  requireAdminHostAccess,
   authService.requireAnyAuth,
   authService.requirePaasAdmin,
   authService.requirePasswordUpdated
@@ -673,6 +940,7 @@ app.use((err, _req, res, _next) => {
 });
 
 async function start() {
+  validateHostAccessConfig();
   await ensureBaseDirectories();
   await authService.init();
   app.listen(config.PORTAL_PORT, () => {
@@ -680,6 +948,16 @@ async function start() {
     console.log(`[portal] env: ${envFilePath}`);
     console.log(`[portal] apps dir: ${config.PAAS_APPS_DIR}`);
     console.log(`[portal] db: ${authService.getDbPath()}`);
+    if (config.PORTAL_HOST_SPLIT_ENABLED) {
+      console.log(
+        `[portal] host split enabled: admin=${config.PORTAL_ADMIN_HOST}, public=${config.PORTAL_PUBLIC_HOST || "(not set)"}`
+      );
+      if (config.PORTAL_ADMIN_ALLOWED_IPS.length) {
+        console.log(
+          `[portal] admin allowlist: ${config.PORTAL_ADMIN_ALLOWED_IPS.join(", ")}`
+        );
+      }
+    }
     if (authService.isLegacyApiKeyEnabled()) {
       console.log("[portal] legacy X-API-Key is enabled from PORTAL_API_KEY");
     }

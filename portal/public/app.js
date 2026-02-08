@@ -5,19 +5,28 @@ const state = {
   apps: [],
   apiKeys: [],
   user: null,
-  refreshTimer: null
+  refreshTimer: null,
+  activeTab: "ops",
+  security: {
+    hostSplitEnabled: false,
+    publicHost: null,
+    adminHost: null,
+    currentHost: null,
+    currentHostType: "unknown",
+    adminAccessAllowedForRequest: true
+  }
 };
 
 const el = {
   statusBanner: document.getElementById("status-banner"),
   authState: document.getElementById("auth-state"),
-  loginForm: document.getElementById("login-form"),
-  loginUsernameInput: document.getElementById("login-username-input"),
-  loginPasswordInput: document.getElementById("login-password-input"),
-  sessionPanel: document.getElementById("session-panel"),
-  sessionUsername: document.getElementById("session-username"),
-  sessionRole: document.getElementById("session-role"),
   logoutBtn: document.getElementById("logout-btn"),
+  settingsBtn: document.getElementById("settings-btn"),
+  openSettingsBtn: document.getElementById("open-settings-btn"),
+  closeSettingsBtn: document.getElementById("close-settings-btn"),
+  settingsModal: document.getElementById("settings-modal"),
+  settingsError: document.getElementById("settings-error"),
+  dashboardView: document.getElementById("dashboard-view"),
   createForm: document.getElementById("create-form"),
   useridInput: document.getElementById("userid-input"),
   appnameInput: document.getElementById("appname-input"),
@@ -32,9 +41,14 @@ const el = {
   appsContainer: document.getElementById("apps-container"),
   keepDataInput: document.getElementById("keep-data-input"),
   logLinesInput: document.getElementById("log-lines-input"),
+  tabBtnOps: document.getElementById("tab-btn-ops"),
+  tabBtnLogs: document.getElementById("tab-btn-logs"),
+  tabButtons: Array.from(document.querySelectorAll(".tab-btn")),
+  tabOps: document.getElementById("tab-ops"),
+  tabLogs: document.getElementById("tab-logs"),
   logsTitle: document.getElementById("logs-title"),
   logsOutput: document.getElementById("logs-output"),
-  passwordPanel: document.getElementById("password-panel"),
+  passwordRequiredNote: document.getElementById("password-required-note"),
   passwordForm: document.getElementById("password-form"),
   currentPasswordInput: document.getElementById("current-password-input"),
   newPasswordInput: document.getElementById("new-password-input"),
@@ -48,6 +62,25 @@ const el = {
 function setBanner(message, type = "info") {
   el.statusBanner.className = `status-banner ${type}`;
   el.statusBanner.textContent = message;
+}
+
+function normalizeErrorMessage(error, fallback = "요청 중 오류가 발생했습니다.") {
+  const raw = String(error?.message || "").trim();
+  if (!raw) {
+    return fallback;
+  }
+  return raw.replace(/^AppError:\s*/i, "");
+}
+
+function setSettingsError(message = "") {
+  const normalized = String(message || "").trim();
+  if (!normalized) {
+    el.settingsError.hidden = true;
+    el.settingsError.textContent = "";
+    return;
+  }
+  el.settingsError.hidden = false;
+  el.settingsError.textContent = normalized;
 }
 
 function escapeHtml(value) {
@@ -71,10 +104,53 @@ function canManageApps() {
   return isLoggedIn() && !isPasswordLocked();
 }
 
+function getAdminAccessHint() {
+  if (!state.security.hostSplitEnabled || state.security.adminAccessAllowedForRequest) {
+    return "";
+  }
+  const adminHost = state.security.adminHost || "admin host";
+  return `현재 호스트에서는 admin 관리 기능을 사용할 수 없습니다. ${adminHost}로 접속하세요.`;
+}
+
+function redirectToAuth() {
+  window.location.replace("/auth");
+}
+
 function syncDomainPreview() {
   const userid = el.useridInput.value.trim() || "userid";
   const appname = el.appnameInput.value.trim() || "appname";
   el.domainPreview.textContent = `${userid}-${appname}.${state.domain}`;
+}
+
+function switchTab(tabName) {
+  const nextTab = tabName === "logs" ? "logs" : "ops";
+  state.activeTab = nextTab;
+
+  const opsSelected = nextTab === "ops";
+  el.tabBtnOps.classList.toggle("active", opsSelected);
+  el.tabBtnOps.setAttribute("aria-selected", String(opsSelected));
+  el.tabBtnLogs.classList.toggle("active", !opsSelected);
+  el.tabBtnLogs.setAttribute("aria-selected", String(!opsSelected));
+  el.tabOps.hidden = !opsSelected;
+  el.tabLogs.hidden = opsSelected;
+}
+
+function openSettingsModal() {
+  if (!isLoggedIn()) {
+    return;
+  }
+  setSettingsError("");
+  el.settingsModal.hidden = false;
+  el.settingsModal.removeAttribute("hidden");
+  document.body.classList.add("modal-open");
+  el.currentPasswordInput.focus();
+}
+
+function closeSettingsModal() {
+  el.settingsModal.hidden = true;
+  el.settingsModal.setAttribute("hidden", "");
+  document.body.classList.remove("modal-open");
+  setSettingsError("");
 }
 
 async function apiFetch(path, options = {}) {
@@ -128,9 +204,14 @@ function resetLogs() {
 
 function applyAccessState() {
   const enabled = canManageApps();
+
   Array.from(el.createForm.elements).forEach((node) => {
     node.disabled = !enabled;
   });
+  Array.from(el.createApiKeyForm.elements).forEach((node) => {
+    node.disabled = !enabled;
+  });
+
   el.refreshBtn.disabled = !enabled;
   el.keepDataInput.disabled = !enabled;
   el.logLinesInput.disabled = !enabled;
@@ -186,7 +267,7 @@ function renderApps(apps) {
 }
 
 function renderApiKeys() {
-  if (!isLoggedIn() || isPasswordLocked()) {
+  if (!canManageApps()) {
     el.apiKeyList.innerHTML = "";
     return;
   }
@@ -218,23 +299,21 @@ function renderApiKeys() {
 
 function updateAuthUi() {
   if (!isLoggedIn()) {
-    el.authState.textContent = "로그아웃 상태";
-    el.loginForm.hidden = false;
-    el.sessionPanel.hidden = true;
-    el.passwordPanel.hidden = true;
+    el.authState.textContent = "인증 필요";
+    el.logoutBtn.hidden = true;
+    el.settingsBtn.hidden = true;
+    el.passwordRequiredNote.hidden = true;
     el.apiKeysPanel.hidden = true;
     applyAccessState();
+    closeSettingsModal();
     return;
   }
 
-  el.authState.textContent = isPasswordLocked()
-    ? "로그인됨 (초기 비밀번호 변경 필요)"
-    : "로그인됨";
-  el.loginForm.hidden = true;
-  el.sessionPanel.hidden = false;
-  el.sessionUsername.textContent = state.user.username;
-  el.sessionRole.textContent = state.user.role;
-  el.passwordPanel.hidden = !isPasswordLocked();
+  const suffix = isPasswordLocked() ? " | 비밀번호 변경 필요" : "";
+  el.authState.textContent = `${state.user.username} (${state.user.role})${suffix}`;
+  el.logoutBtn.hidden = false;
+  el.settingsBtn.hidden = false;
+  el.passwordRequiredNote.hidden = !isPasswordLocked();
   el.apiKeysPanel.hidden = isPasswordLocked();
   applyAccessState();
 }
@@ -269,19 +348,40 @@ async function handleRequestError(error) {
     renderApiKeys();
     updateAuthUi();
     stopAutoRefresh();
-    setBanner("세션이 만료되었습니다. 다시 로그인하세요.", "error");
+    setBanner("세션이 만료되었습니다. 로그인 페이지로 이동합니다.", "error");
+    redirectToAuth();
     return;
   }
   if (error?.status === 403 && isPasswordLocked()) {
-    setBanner("초기 비밀번호를 먼저 변경하세요.", "error");
+    switchTab("ops");
+    setBanner("초기 비밀번호를 설정에서 변경하세요.", "error");
     return;
   }
-  setBanner(error.message || "요청 중 오류가 발생했습니다.", "error");
+  setBanner(normalizeErrorMessage(error), "error");
+}
+
+async function handleSettingsModalError(error) {
+  const message = normalizeErrorMessage(error, "설정 변경 중 오류가 발생했습니다.");
+  const isCurrentPasswordMismatch =
+    error?.status === 401 && /^current password is incorrect$/i.test(message);
+  if (error?.status === 401 && !isCurrentPasswordMismatch) {
+    await handleRequestError(error);
+    return;
+  }
+  setSettingsError(message);
 }
 
 async function loadConfig() {
   const data = await apiFetch("/config");
   state.domain = data.domain || "my.domain.com";
+  state.security = {
+    hostSplitEnabled: Boolean(data.security?.hostSplitEnabled),
+    publicHost: data.security?.publicHost || null,
+    adminHost: data.security?.adminHost || null,
+    currentHost: data.security?.currentHost || null,
+    currentHostType: data.security?.currentHostType || "unknown",
+    adminAccessAllowedForRequest: Boolean(data.security?.adminAccessAllowedForRequest)
+  };
   el.domainChip.textContent = state.domain;
   el.limitChip.textContent = `${data.limits.maxAppsPerUser}/${data.limits.maxTotalApps}`;
   if (!el.templateInput.value) {
@@ -318,7 +418,7 @@ async function loadApps() {
 }
 
 async function loadApiKeys() {
-  if (!isLoggedIn() || isPasswordLocked()) {
+  if (!canManageApps()) {
     state.apiKeys = [];
     renderApiKeys();
     return;
@@ -326,6 +426,16 @@ async function loadApiKeys() {
   const data = await apiFetch("/api-keys");
   state.apiKeys = data.apiKeys || [];
   renderApiKeys();
+}
+
+async function refreshDashboardData() {
+  await loadApps();
+  await loadApiKeys();
+  if (canManageApps()) {
+    startAutoRefresh();
+  } else {
+    stopAutoRefresh();
+  }
 }
 
 async function handleCreate(event) {
@@ -383,6 +493,7 @@ async function performAction(target) {
   const appLabel = `${userid}/${appname}`;
 
   if (action === "logs") {
+    switchTab("logs");
     setBanner(`로그 조회 중: ${appLabel}`, "info");
     await requestLogs(userid, appname);
     setBanner(`로그 조회 완료: ${appLabel}`, "success");
@@ -427,86 +538,74 @@ async function performAction(target) {
 }
 
 async function bootstrap() {
+  switchTab("ops");
+  updateAuthUi();
   await loadConfig();
   syncDomainPreview();
+
   const loggedIn = await loadSession();
   if (!loggedIn) {
-    renderApps([]);
-    renderApiKeys();
-    setBanner("로그인 후 Portal을 사용할 수 있습니다.", "info");
+    redirectToAuth();
     return;
   }
 
+  await refreshDashboardData();
+  const hint = getAdminAccessHint();
   if (isPasswordLocked()) {
-    renderApps([]);
-    renderApiKeys();
-    setBanner("초기 비밀번호를 변경해야 앱 관리가 활성화됩니다.", "info");
+    setBanner(hint || "초기 비밀번호를 우상단 설정에서 변경하세요.", "error");
     return;
   }
-
-  await loadApps();
-  await loadApiKeys();
-  startAutoRefresh();
-  setBanner("로그인 상태가 확인되었습니다.", "success");
+  setBanner(hint || "로그인 상태가 확인되었습니다.", hint ? "info" : "success");
 }
 
 el.useridInput.addEventListener("input", syncDomainPreview);
 el.appnameInput.addEventListener("input", syncDomainPreview);
 
-el.loginForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    const username = el.loginUsernameInput.value.trim();
-    const password = el.loginPasswordInput.value;
-    if (!username || !password) {
-      throw new Error("로그인 ID와 비밀번호를 입력하세요.");
-    }
-    const data = await apiFetch("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password })
-    });
-    state.user = data.user || null;
-    updateAuthUi();
-    el.loginPasswordInput.value = "";
-    resetLogs();
-
-    if (isPasswordLocked()) {
-      renderApps([]);
-      renderApiKeys();
-      stopAutoRefresh();
-      setBanner("초기 비밀번호를 먼저 변경하세요.", "info");
-      return;
-    }
-
-    await loadApps();
-    await loadApiKeys();
-    startAutoRefresh();
-    setBanner("로그인 완료", "success");
-  } catch (error) {
-    await handleRequestError(error);
-  }
+el.tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    switchTab(button.dataset.tabTarget);
+  });
 });
 
 el.logoutBtn.addEventListener("click", async () => {
   try {
     await apiFetch("/auth/logout", { method: "POST" });
   } catch {
-    // Ignore logout transport errors and reset client state anyway.
+    // Ignore transport errors and redirect anyway.
   }
-  state.user = null;
-  state.apps = [];
-  state.apiKeys = [];
-  renderApps([]);
-  renderApiKeys();
-  updateAuthUi();
   stopAutoRefresh();
-  el.newApiKey.textContent = "(없음)";
-  resetLogs();
-  setBanner("로그아웃되었습니다.", "info");
+  redirectToAuth();
+});
+
+el.settingsBtn.addEventListener("click", () => {
+  openSettingsModal();
+});
+
+el.openSettingsBtn.addEventListener("click", () => {
+  openSettingsModal();
+});
+
+el.closeSettingsBtn.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  closeSettingsModal();
+});
+
+el.settingsModal.addEventListener("click", (event) => {
+  if (event.target === el.settingsModal) {
+    closeSettingsModal();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if ((event.key === "Escape" || event.key === "Esc") && !el.settingsModal.hidden) {
+    closeSettingsModal();
+  }
 });
 
 el.passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  setSettingsError("");
   try {
     const currentPassword = el.currentPasswordInput.value;
     const newPassword = el.newPasswordInput.value;
@@ -514,16 +613,16 @@ el.passwordForm.addEventListener("submit", async (event) => {
       method: "POST",
       body: JSON.stringify({ currentPassword, newPassword })
     });
+
     state.user = data.user || null;
     el.currentPasswordInput.value = "";
     el.newPasswordInput.value = "";
     updateAuthUi();
-    await loadApps();
-    await loadApiKeys();
-    startAutoRefresh();
+    closeSettingsModal();
+    await refreshDashboardData();
     setBanner("비밀번호 변경이 완료되었습니다.", "success");
   } catch (error) {
-    await handleRequestError(error);
+    await handleSettingsModalError(error);
   }
 });
 
