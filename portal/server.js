@@ -41,7 +41,7 @@ const config = {
   PAAS_SCRIPTS_DIR: process.env.PAAS_SCRIPTS_DIR || path.join(paasRoot, "scripts"),
   PAAS_SHARED_DIR: process.env.PAAS_SHARED_DIR || path.join(paasRoot, "shared"),
   DEFAULT_TEMPLATE_ID:
-    process.env.DEFAULT_TEMPLATE_ID || process.env.DEFAULT_STARTER_ID || "node-lite-v1",
+    process.env.DEFAULT_TEMPLATE_ID || "node-lite-v1",
   PORTAL_PORT: toPositiveInt(process.env.PORTAL_PORT, 3000),
   PORTAL_API_KEY: process.env.PORTAL_API_KEY || "changeme-random-secret",
   PORTAL_DB_PATH: process.env.PORTAL_DB_PATH || path.join(paasRoot, "portal-data", "portal.sqlite3"),
@@ -412,7 +412,7 @@ function validateCreateBody(body) {
     throw new AppError(400, "Request body is required");
   }
   const appname = String(body.appname || "").trim();
-  const templateId = String(body.templateId || body.starterId || config.DEFAULT_TEMPLATE_ID)
+  const templateId = String(body.templateId || config.DEFAULT_TEMPLATE_ID)
     .trim()
     .toLowerCase();
 
@@ -605,10 +605,13 @@ async function runRunnerScript(scriptName, args) {
   }
 
   try {
-    return await runCommand("bash", [`./${safeScriptName}`, ...args], {
+    const result = await runCommand("bash", [`./${safeScriptName}`, ...args], {
       cwd: config.PAAS_SCRIPTS_DIR
     });
+    dockerStatusCache.ts = 0;
+    return result;
   } catch (error) {
+    dockerStatusCache.ts = 0;
     if (error.code === "ENOENT") {
       throw new AppError(503, "bash command is not available");
     }
@@ -623,10 +626,13 @@ async function runDockerCompose(appDir, args) {
   }
 
   try {
-    return await runCommand("docker", ["compose", "-f", "docker-compose.yml", ...args], {
+    const result = await runCommand("docker", ["compose", "-f", "docker-compose.yml", ...args], {
       cwd: appDir
     });
+    dockerStatusCache.ts = 0;
+    return result;
   } catch (error) {
+    dockerStatusCache.ts = 0;
     if (error.code === "ENOENT") {
       throw new AppError(503, "docker command is not available");
     }
@@ -655,7 +661,14 @@ async function getDockerContainerStatus(userid, appname) {
   }
 }
 
+const dockerStatusCache = { map: new Map(), ts: 0, TTL: 5000 };
+
 async function listDockerStatuses() {
+  const now = Date.now();
+  if (now - dockerStatusCache.ts < dockerStatusCache.TTL) {
+    return dockerStatusCache.map;
+  }
+
   const statusMap = new Map();
   try {
     const { stdout } = await runCommand("docker", [
@@ -667,6 +680,8 @@ async function listDockerStatuses() {
       "{{.Names}}\t{{.Status}}"
     ]);
     if (!stdout) {
+      dockerStatusCache.map = statusMap;
+      dockerStatusCache.ts = now;
       return statusMap;
     }
 
@@ -678,6 +693,8 @@ async function listDockerStatuses() {
         statusMap.set(name.trim(), status || "unknown");
       }
     }
+    dockerStatusCache.map = statusMap;
+    dockerStatusCache.ts = now;
     return statusMap;
   } catch {
     return statusMap;
@@ -732,7 +749,7 @@ async function buildAppInfo(userid, appname, statusMap) {
     containerName: appContainerName,
     status: normalizeStatus(rawStatus),
     rawStatus,
-    templateId: metadata?.templateId || metadata?.starterId || config.DEFAULT_TEMPLATE_ID,
+    templateId: metadata?.templateId || config.DEFAULT_TEMPLATE_ID,
     createdAt: metadata?.createdAt || null,
     appDir
   };

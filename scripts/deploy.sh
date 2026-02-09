@@ -33,7 +33,7 @@ fi
 PAAS_ROOT="${PAAS_ROOT:-${PAAS_ROOT_DEFAULT}}"
 PAAS_APPS_DIR="${PAAS_APPS_DIR:-${PAAS_ROOT}/apps}"
 PAAS_SHARED_DIR="${PAAS_SHARED_DIR:-${PAAS_ROOT}/shared}"
-DEFAULT_TEMPLATE_ID="${DEFAULT_TEMPLATE_ID:-${DEFAULT_STARTER_ID:-node-lite-v1}}"
+DEFAULT_TEMPLATE_ID="${DEFAULT_TEMPLATE_ID:-node-lite-v1}"
 
 usage() {
   echo "Usage: deploy.sh <userid> <appname>" >&2

@@ -6,9 +6,10 @@
 #   node:22-alpine 기반의 경량 이미지로, 저사양 서버(Celeron N3150)에서
 #   다수의 앱 컨테이너를 동시에 운용하기 위해 최소한의 크기를 유지한다.
 #
-#   실제 앱 코드는 volume mount로 /app에 주입되며,
-#   create.sh에서 생성한 docker-compose.yml의 command가 npm install과
-#   node server.js 실행을 담당하므로, 이 이미지 자체는 런타임만 제공한다.
+#   실제 앱 코드는 volume mount로 /app에 주입되고,
+#   node_modules는 shared 디렉토리에서 read-only로 마운트된다.
+#   (init-modules.sh가 템플릿별로 한 벌만 설치)
+#   이 이미지 자체는 Node.js 런타임만 제공한다.
 # =============================================================================
 FROM node:22-alpine
 

@@ -194,6 +194,20 @@ function createAuthService(options) {
     };
   }
 
+  const TOUCH_THROTTLE_MS = 5 * 60 * 1000;
+  const touchTimestamps = new Map();
+
+  function throttledTouch(prefix, id, statement) {
+    const key = `${prefix}:${id}`;
+    const now = Date.now();
+    const lastTouch = touchTimestamps.get(key) || 0;
+    if (now - lastTouch < TOUCH_THROTTLE_MS) {
+      return;
+    }
+    touchTimestamps.set(key, now);
+    statement.run(nowIso(), id);
+  }
+
   function authenticateSession(rawToken) {
     const parsed = parseStructuredToken(rawToken, SESSION_TOKEN_PREFIX);
     if (!parsed) {
@@ -213,7 +227,7 @@ function createAuthService(options) {
       return null;
     }
 
-    statements.touchSessionLastUsed.run(nowIso(), parsed.id);
+    throttledTouch("sess", parsed.id, statements.touchSessionLastUsed);
     return {
       method: "session",
       user: toPublicUser(row),
@@ -234,7 +248,7 @@ function createAuthService(options) {
     if (!safeEqual(hashSecret(parsed.secret), row.secretHash)) {
       return null;
     }
-    statements.touchApiKeyLastUsed.run(nowIso(), parsed.id);
+    throttledTouch("apikey", parsed.id, statements.touchApiKeyLastUsed);
     return {
       method: "api-key",
       apiKeyId: parsed.id,

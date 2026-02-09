@@ -5,10 +5,12 @@
 # 역할:
 #   사용자가 요청한 앱을 템플릿 기반으로 생성한다.
 #   1) userid/appname 유효성 검증
-#   2) 템플릿(node-lite-v1 등)의 app/ 디렉토리를 apps/{userid}/{appname}/app/ 으로 복사
-#   3) data/, logs/ 디렉토리 생성 (persistent volume 용도)
-#   4) 리소스 제한(mem/cpu)이 적용된 docker-compose.yml 자동 생성
-#   5) docker compose up -d 로 컨테이너 기동
+#   2) 공유 node_modules가 없으면 init-modules.sh를 자동 호출하여 초기화
+#   3) 템플릿(node-lite-v1 등)의 app/ 디렉토리를 apps/{userid}/{appname}/app/ 으로 복사
+#   4) data/, logs/ 디렉토리 생성 (persistent volume 용도)
+#   5) 리소스 제한(mem/cpu)이 적용된 docker-compose.yml 자동 생성
+#      (공유 node_modules를 read-only로 마운트)
+#   6) docker compose up -d 로 컨테이너 기동
 #
 # 사용법:
 #   create.sh <userid> <appname> [templateId]
@@ -43,7 +45,7 @@ RUNTIME_IMAGE="${RUNTIME_IMAGE:-node:22-alpine}"
 DEFAULT_MEM_LIMIT="${DEFAULT_MEM_LIMIT:-256m}"
 DEFAULT_CPU_LIMIT="${DEFAULT_CPU_LIMIT:-0.5}"
 DEFAULT_RESTART_POLICY="${DEFAULT_RESTART_POLICY:-unless-stopped}"
-DEFAULT_TEMPLATE_ID="${DEFAULT_TEMPLATE_ID:-${DEFAULT_STARTER_ID:-node-lite-v1}}"
+DEFAULT_TEMPLATE_ID="${DEFAULT_TEMPLATE_ID:-node-lite-v1}"
 
 usage() {
   echo "Usage: create.sh <userid> <appname> [templateId]" >&2

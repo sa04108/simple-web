@@ -10,7 +10,7 @@
 //   - 사용자 관리: 계정 생성/삭제 (admin 전용)
 //   - 세션 상태(현재 뷰, 탭)를 sessionStorage에 유지
 // =============================================================================
-const AUTO_REFRESH_MS = 15000;
+const AUTO_REFRESH_MS = 30000;
 const EMPTY_NEW_API_KEY_TEXT = "(없음)";
 const UI_STATE_STORAGE_KEY = "paas.portal.uiState";
 const AVAILABLE_VIEWS = ["dashboard", "create", "ops", "users"];
@@ -552,7 +552,7 @@ function renderApps(apps) {
       const safeUser = escapeHtml(appItem.userid);
       const safeApp = escapeHtml(appItem.appname);
       const safeDomain = escapeHtml(appItem.domain || "-");
-      const safeTemplate = escapeHtml(appItem.templateId || appItem.starterId || "-");
+      const safeTemplate = escapeHtml(appItem.templateId || "-");
       const rawStatus = appItem.status || "unknown";
       const safeStatus = escapeHtml(rawStatus);
       const safeCreatedAt = escapeHtml(formatDate(appItem.createdAt));
@@ -764,11 +764,7 @@ async function handleSettingsModalError(error) {
 async function loadConfig() {
   const data = await apiFetch("/config");
   state.domain = data.domain || "my.domain.com";
-  state.templates = Array.isArray(data.templates)
-    ? data.templates
-    : Array.isArray(data.starters)
-      ? data.starters
-      : [];
+  state.templates = Array.isArray(data.templates) ? data.templates : [];
   state.security = {
     hostSplitEnabled: Boolean(data.security?.hostSplitEnabled),
     publicHost: data.security?.publicHost || null,
@@ -780,10 +776,7 @@ async function loadConfig() {
   el.domainChip.textContent = state.domain;
   el.limitChip.textContent = `${data.limits.maxAppsPerUser}/${data.limits.maxTotalApps}`;
   renderTemplateOptions(
-    data.defaults?.templateId ||
-      data.defaults?.starterId ||
-      state.templates[0]?.id ||
-      "node-lite-v1",
+    data.defaults?.templateId || state.templates[0]?.id || "node-lite-v1",
   );
   syncDomainPreview();
 }
