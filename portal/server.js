@@ -11,7 +11,7 @@
 //
 //   셸 스크립트(create.sh, deploy.sh, delete.sh)를 호출하여
 //   Docker Compose 기반으로 앱 컨테이너를 제어한다.
-//   GitHub Workflow와 유사하게, 유저가 작성한 Node.js 코드를
+//   GitHub Workflow와 유사하게, 유저가 작성한 템플릿 기반 앱 코드를
 //   격리된 컨테이너 환경에서 실행할 수 있게 해준다.
 // =============================================================================
 "use strict";
@@ -40,8 +40,6 @@ const config = {
   PAAS_TEMPLATES_DIR: process.env.PAAS_TEMPLATES_DIR || path.join(paasRoot, "templates"),
   PAAS_SCRIPTS_DIR: process.env.PAAS_SCRIPTS_DIR || path.join(paasRoot, "scripts"),
   PAAS_SHARED_DIR: process.env.PAAS_SHARED_DIR || path.join(paasRoot, "shared"),
-  DEFAULT_TEMPLATE_ID:
-    process.env.DEFAULT_TEMPLATE_ID || "node-lite-v1",
   PORTAL_PORT: toPositiveInt(process.env.PORTAL_PORT, 3000),
   PORTAL_DB_PATH: process.env.PORTAL_DB_PATH || path.join(paasRoot, "portal-data", "portal.sqlite3"),
   SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME || "paas_portal_session",
@@ -394,10 +392,12 @@ function assertAppName(appname) {
   }
 }
 
-function assertTemplateId(templateId) {
-  if (!TEMPLATE_ID_REGEX.test(templateId)) {
-    throw new AppError(400, "Invalid templateId. Expected /^[a-z0-9][a-z0-9-]{1,63}$/");
+function normalizeTemplateId(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!TEMPLATE_ID_REGEX.test(normalized)) {
+    return "";
   }
+  return normalized;
 }
 
 function validateAppParams(userid, appname) {
@@ -410,12 +410,16 @@ function validateCreateBody(body) {
     throw new AppError(400, "Request body is required");
   }
   const appname = String(body.appname || "").trim();
-  const templateId = String(body.templateId || config.DEFAULT_TEMPLATE_ID)
-    .trim()
-    .toLowerCase();
+  const rawTemplateId = String(body.templateId || "").trim().toLowerCase();
+  const templateId = normalizeTemplateId(rawTemplateId);
 
   assertAppName(appname);
-  assertTemplateId(templateId);
+  if (!rawTemplateId) {
+    throw new AppError(400, "templateId is required");
+  }
+  if (!templateId) {
+    throw new AppError(400, "Invalid templateId. Expected /^[a-z0-9][a-z0-9-]{1,63}$/");
+  }
 
   return {
     appname,
@@ -510,6 +514,22 @@ async function readAppMeta(appDir) {
   }
 }
 
+async function readAppTemplateId(appDir, metadata = null) {
+  const fromMeta = normalizeTemplateId(metadata?.templateId);
+  if (fromMeta) {
+    return fromMeta;
+  }
+
+  const templateMetaPath = path.join(appDir, "template.json");
+  try {
+    const raw = await fs.readFile(templateMetaPath, "utf8");
+    const parsed = JSON.parse(raw);
+    return normalizeTemplateId(parsed?.id) || null;
+  } catch {
+    return null;
+  }
+}
+
 async function readTemplateMeta(templateId) {
   const templateDir = getTemplateDir(templateId);
   const templateMetaPath = path.join(templateDir, "template.json");
@@ -559,7 +579,10 @@ async function listAvailableTemplates() {
     }
 
     const templateDir = getTemplateDir(templateId);
-    if (!(await pathExists(path.join(templateDir, "app")))) {
+    if (
+      !(await pathExists(path.join(templateDir, "app"))) ||
+      !(await pathExists(path.join(templateDir, "template.json")))
+    ) {
       continue;
     }
 
@@ -734,6 +757,7 @@ async function buildAppInfo(userid, appname, statusMap) {
   }
 
   const metadata = await readAppMeta(appDir);
+  const templateId = await readAppTemplateId(appDir, metadata);
   const appContainerName = containerName(userid, appname);
   const rawStatus =
     statusMap instanceof Map && statusMap.has(appContainerName)
@@ -747,7 +771,7 @@ async function buildAppInfo(userid, appname, statusMap) {
     containerName: appContainerName,
     status: normalizeStatus(rawStatus),
     rawStatus,
-    templateId: metadata?.templateId || config.DEFAULT_TEMPLATE_ID,
+    templateId,
     createdAt: metadata?.createdAt || null,
     appDir
   };
@@ -802,9 +826,6 @@ app.get("/config", async (req, res, next) => {
   try {
     const access = getAdminAccessContext(req);
     const templates = await listAvailableTemplates();
-    const defaultTemplateId = templates.some((item) => item.id === config.DEFAULT_TEMPLATE_ID)
-      ? config.DEFAULT_TEMPLATE_ID
-      : templates[0]?.id || config.DEFAULT_TEMPLATE_ID;
 
     return sendOk(res, {
       domain: config.PAAS_DOMAIN,
@@ -814,7 +835,7 @@ app.get("/config", async (req, res, next) => {
       },
       templates,
       defaults: {
-        templateId: defaultTemplateId
+        templateId: null
       },
       auth: authService.getPublicConfig(),
       appAccess: {
@@ -885,7 +906,11 @@ app.post("/apps", async (req, res, next) => {
     const { appname, templateId } = validateCreateBody(req.body);
 
     const templateDir = getTemplateDir(templateId);
-    if (!(await pathExists(templateDir)) || !(await pathExists(path.join(templateDir, "app")))) {
+    if (
+      !(await pathExists(templateDir)) ||
+      !(await pathExists(path.join(templateDir, "app"))) ||
+      !(await pathExists(path.join(templateDir, "template.json")))
+    ) {
       throw new AppError(400, `Template not found: ${templateId}`);
     }
 

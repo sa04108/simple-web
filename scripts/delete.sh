@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# delete.sh - PaaS 앱 삭제 스크립트
+# delete.sh - 앱 삭제 스크립트 (공통 오케스트레이터)
 # =============================================================================
 # 역할:
 #   사용자 앱의 컨테이너를 중지하고 관련 파일을 삭제한다.
@@ -15,22 +15,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PAAS_ROOT_DEFAULT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-ENV_FILE="${PAAS_ENV_FILE:-${PAAS_ROOT_DEFAULT}/.env}"
-
-if [[ -z "${PAAS_ENV_FILE:-}" && -f "/paas/.env" ]]; then
-  ENV_FILE="/paas/.env"
-fi
-
-if [[ -f "${ENV_FILE}" ]]; then
-  set -a
-  # shellcheck source=/dev/null
-  source "${ENV_FILE}"
-  set +a
-fi
-
-PAAS_ROOT="${PAAS_ROOT:-${PAAS_ROOT_DEFAULT}}"
-PAAS_APPS_DIR="${PAAS_APPS_DIR:-${PAAS_ROOT}/apps}"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/lib/common.sh"
 
 usage() {
   echo "Usage: delete.sh <userid> <appname> [--keep-data]" >&2
@@ -48,21 +34,23 @@ if [[ "${3:-}" == "--keep-data" ]]; then
   KEEP_DATA="true"
 fi
 
-if [[ ! "${USER_ID}" =~ ^[a-z][a-z0-9]{2,19}$ ]]; then
-  echo "Invalid userid. Expected /^[a-z][a-z0-9]{2,19}$/" >&2
-  exit 1
-fi
-if [[ ! "${APP_NAME}" =~ ^[a-z][a-z0-9-]{2,29}$ ]]; then
-  echo "Invalid appname. Expected /^[a-z][a-z0-9-]{2,29}$/" >&2
-  exit 1
-fi
+validate_user_id "${USER_ID}"
+validate_app_name "${APP_NAME}"
 
-APP_DIR="${PAAS_APPS_DIR}/${USER_ID}/${APP_NAME}"
+APP_DIR="$(app_dir_for "${USER_ID}" "${APP_NAME}")"
 COMPOSE_FILE="${APP_DIR}/docker-compose.yml"
 
 if [[ ! -d "${APP_DIR}" ]]; then
   echo "App not found: ${USER_ID}/${APP_NAME}" >&2
   exit 1
+fi
+
+TEMPLATE_ID="$(resolve_app_template_id "${APP_DIR}")"
+if [[ -n "${TEMPLATE_ID}" ]]; then
+  TEMPLATE_DIR="$(template_dir_for "${TEMPLATE_ID}")"
+  if [[ -f "${TEMPLATE_DIR}/template.json" ]]; then
+    run_template_hook "${TEMPLATE_ID}" "preDelete" "${USER_ID}" "${APP_NAME}" "${APP_DIR}"
+  fi
 fi
 
 if [[ -f "${COMPOSE_FILE}" ]]; then

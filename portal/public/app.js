@@ -235,18 +235,18 @@ function renderTemplateOptions(selectedTemplateId) {
   }
 
   const templates = Array.isArray(state.templates) ? state.templates : [];
-  const fallbackTemplateId = selectedTemplateId || "node-lite-v1";
-  const resolvedItems = templates.length
-    ? templates
-    : [
-        {
-          id: fallbackTemplateId,
-          name: fallbackTemplateId,
-          description: "",
-        },
-      ];
+  const preferredTemplateId = String(selectedTemplateId || "")
+    .trim()
+    .toLowerCase();
 
-  el.templateSelect.innerHTML = resolvedItems
+  if (!templates.length) {
+    el.templateSelect.innerHTML =
+      '<option value="" disabled selected>사용 가능한 템플릿이 없습니다.</option>';
+    el.templateSelect.value = "";
+    return;
+  }
+
+  const options = templates
     .map((item) => {
       const id = escapeHtml(item.id || "");
       const name = escapeHtml(item.name || item.id || "");
@@ -256,14 +256,15 @@ function renderTemplateOptions(selectedTemplateId) {
     })
     .join("");
 
-  const preferredTemplateId =
-    String(selectedTemplateId || "").trim().toLowerCase() || resolvedItems[0].id;
-  const hasPreferredTemplate = resolvedItems.some(
+  el.templateSelect.innerHTML = `
+    <option value="" disabled>템플릿을 선택하세요.</option>
+    ${options}
+  `;
+
+  const hasPreferredTemplate = templates.some(
     (item) => String(item.id || "").toLowerCase() === preferredTemplateId,
   );
-  el.templateSelect.value = hasPreferredTemplate
-    ? preferredTemplateId
-    : String(resolvedItems[0].id || "").toLowerCase();
+  el.templateSelect.value = hasPreferredTemplate ? preferredTemplateId : "";
 }
 
 function getVisibleNewApiKey() {
@@ -775,9 +776,7 @@ async function loadConfig() {
   };
   el.domainChip.textContent = state.domain;
   el.limitChip.textContent = `${data.limits.maxAppsPerUser}/${data.limits.maxTotalApps}`;
-  renderTemplateOptions(
-    data.defaults?.templateId || state.templates[0]?.id || "node-lite-v1",
-  );
+  renderTemplateOptions(data.defaults?.templateId || "");
   syncDomainPreview();
 }
 

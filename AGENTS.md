@@ -20,8 +20,9 @@
 - Portal API: Node.js + Express (`portal/server.js`)
 - 인증/포털 관리자 키: SQLite + `portal/authService.js`
 - 앱 접속 키: SQLite + `portal/appAccessService.js`
-- 앱 실행 제어: shell scripts (`scripts/create.sh`, `scripts/deploy.sh`, `scripts/delete.sh`)
-- 공유 모듈 관리: `scripts/init-modules.sh`
+- 앱 실행 공통 오케스트레이션: shell scripts (`scripts/create.sh`, `scripts/deploy.sh`, `scripts/delete.sh`)
+- 템플릿 메타/compose 변환: `scripts/template-runtime.js`
+- 템플릿 전용 런타임 준비: `templates/{templateId}/hooks/*.sh` (`preCreate`, `preDeploy`, `preDelete` 등)
 - 앱 실행 단위: app별 docker-compose 1개
 
 ## 4. Template & Module Policy
@@ -36,7 +37,8 @@
 - 구조: `shared/{templateId}/node_modules` 에 한 벌만 설치
 - 각 앱 컨테이너는 이 디렉토리를 `/app/node_modules:ro` (read-only)로 마운트
 - 컨테이너 기동 시 `npm install`은 실행하지 않는다 (바로 `node server.js`)
-- `create.sh`, `deploy.sh` 에서 공유 모듈이 없으면 `init-modules.sh`를 자동 호출
+- 공통 스크립트는 template hook(`preCreate`, `preDeploy`)을 호출하고,
+  node-lite 템플릿 hook이 공유 모듈 초기화를 수행한다.
 - 사용자가 바라보는 `package.json`은 앱마다 다를 수 있으나, 실제 모듈은 공유된다.
 
 ## 5. API Surface (MVP)
@@ -70,11 +72,10 @@
 - 키 원문은 발급 시 1회만 반환한다.
 
 ## 7. Runtime and Scripts
-- `scripts/create.sh`: 공유 모듈 확인 → 템플릿 복사 → compose 생성(공유 node_modules ro 마운트) → `docker compose up -d`
-- `scripts/deploy.sh`: 공유 모듈 확인 → `down` + `up -d`, 최대 30초 running 확인
-- `scripts/delete.sh`: `down` 후 삭제 (`--keep-data` 지원)
-- `scripts/init-modules.sh`: 템플릿의 package.json 기준으로 `shared/{templateId}/node_modules` 설치
-  - create/deploy 시 자동 호출됨 (수동 실행도 가능)
+- `scripts/create.sh`: templateId 필수 검증 → 템플릿 복사 → `preCreate` hook 호출 → 템플릿 메타 기반 compose 생성 → `docker compose up -d`
+- `scripts/deploy.sh`: 앱의 templateId 확인 → `preDeploy` hook 호출 → `down` + `up -d`, 최대 30초 running 확인
+- `scripts/delete.sh`: 필요 시 `preDelete` hook 호출 후 `down` + 삭제 (`--keep-data` 지원)
+- `scripts/template-runtime.js`: 템플릿 메타(`template.json`) 파싱, hook 조회, compose 렌더링
 
 ## 8. 컨테이너 네이밍
 - 앱 컨테이너: `paas-app-{userid}-{appname}` (suffix로 서버의 다른 컨테이너와 구분)
@@ -100,14 +101,14 @@ paas-webapp/
 │   ├── appAccessService.js  # 앱 client key 관리
 │   └── public/              # 대시보드 UI (index.html, app.js, auth.html, auth.js)
 ├── scripts/                 # 앱 라이프사이클 셸 스크립트
-│   ├── create.sh            # 앱 생성
-│   ├── deploy.sh            # 앱 재배포
-│   ├── delete.sh            # 앱 삭제
-│   └── init-modules.sh      # 공유 node_modules 초기화
+│   ├── create.sh            # 앱 생성 (공통 오케스트레이터)
+│   ├── deploy.sh            # 앱 재배포 (공통 오케스트레이터)
+│   ├── delete.sh            # 앱 삭제 (공통 오케스트레이터)
+│   ├── template-runtime.js  # 템플릿 메타 파서/compose 렌더러
+│   └── lib/common.sh        # 공통 유효성/환경 로더
 ├── templates/               # 앱 템플릿 (추후 확장)
 │   └── node-lite-v1/
-├── runtime/                 # 앱 컨테이너 베이스 이미지
-│   └── Dockerfile
+│       └── hooks/           # 템플릿 전용 hook 스크립트
 ├── shared/                  # 템플릿별 공유 node_modules (런타임 생성)
 ├── apps/                    # 유저별 앱 디렉토리 (런타임 생성)
 ├── docker-compose.yml       # 포털 서버 컨테이너 정의

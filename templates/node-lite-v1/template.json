@@ -3,5 +3,34 @@
   "name": "Node Lite",
   "description": "Node.js single-app starter for HTTP API",
   "version": "1.0.0",
-  "internalPort": 3000
+  "internalPort": 3000,
+  "runtime": {
+    "image": "node:22-alpine",
+    "workdir": "/app",
+    "command": ["node", "server.js"],
+    "environment": {
+      "NODE_ENV": "production",
+      "DATA_DIR": "/data"
+    },
+    "mounts": [
+      {
+        "type": "app",
+        "target": "/app"
+      },
+      {
+        "type": "shared",
+        "source": "node_modules",
+        "target": "/app/node_modules",
+        "readOnly": true
+      },
+      {
+        "type": "data",
+        "target": "/data"
+      }
+    ]
+  },
+  "hooks": {
+    "preCreate": "hooks/prepare-runtime.sh",
+    "preDeploy": "hooks/prepare-runtime.sh"
+  }
 }
