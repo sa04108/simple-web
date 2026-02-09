@@ -1,6 +1,9 @@
 services:
   portal:
-    image: node:22-alpine
+    build:
+      context: .
+      dockerfile: portal/Dockerfile
+    image: paas-portal:local
     container_name: paas-portal
     working_dir: /paas/portal
     command: sh -c "npm ci && npm start"
