@@ -1,0 +1,14 @@
+{
+  "name": "node-lite-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node.js single-app starter for mini PaaS",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

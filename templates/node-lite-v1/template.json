@@ -1,0 +1,7 @@
+{
+  "id": "node-lite-v1",
+  "name": "Node Lite",
+  "description": "Node.js single-app starter for HTTP API",
+  "version": "1.0.0",
+  "internalPort": 3000
+}

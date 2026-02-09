@@ -9,6 +9,7 @@ const { promisify } = require("node:util");
 const express = require("express");
 const dotenv = require("dotenv");
 const { createAuthService } = require("./authService");
+const { createAppAccessService } = require("./appAccessService");
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(__dirname, "..");
@@ -18,11 +19,12 @@ dotenv.config({ path: envFilePath });
 
 const paasRoot = process.env.PAAS_ROOT || repoRoot;
 const config = {
-  PAAS_ROOT: paasRoot,
   PAAS_DOMAIN: process.env.PAAS_DOMAIN || "my.domain.com",
   PAAS_APPS_DIR: process.env.PAAS_APPS_DIR || path.join(paasRoot, "apps"),
   PAAS_TEMPLATES_DIR: process.env.PAAS_TEMPLATES_DIR || path.join(paasRoot, "templates"),
   PAAS_SCRIPTS_DIR: process.env.PAAS_SCRIPTS_DIR || path.join(paasRoot, "scripts"),
+  DEFAULT_TEMPLATE_ID:
+    process.env.DEFAULT_TEMPLATE_ID || process.env.DEFAULT_STARTER_ID || "node-lite-v1",
   PORTAL_PORT: toPositiveInt(process.env.PORTAL_PORT, 3000),
   PORTAL_API_KEY: process.env.PORTAL_API_KEY || "changeme-random-secret",
   PORTAL_DB_PATH: process.env.PORTAL_DB_PATH || path.join(paasRoot, "portal-data", "portal.sqlite3"),
@@ -324,6 +326,15 @@ const authService = createAuthService({
   AppError
 });
 
+const appAccessService = createAppAccessService({
+  dbPath: config.PORTAL_DB_PATH,
+  sendOk,
+  sendError,
+  AppError,
+  userIdRegex: USER_ID_REGEX,
+  appNameRegex: APP_NAME_REGEX
+});
+
 function containerName(userid, appname) {
   return `paas-app-${userid}-${appname}`;
 }
@@ -370,7 +381,7 @@ function assertAppName(appname) {
 
 function assertTemplateId(templateId) {
   if (!TEMPLATE_ID_REGEX.test(templateId)) {
-    throw new AppError(400, "Invalid templateId format");
+    throw new AppError(400, "Invalid templateId. Expected /^[a-z0-9][a-z0-9-]{1,63}$/");
   }
 }
 
@@ -383,20 +394,27 @@ function validateCreateBody(body) {
   if (!body || typeof body !== "object") {
     throw new AppError(400, "Request body is required");
   }
-  const userid = String(body.userid || "").trim();
   const appname = String(body.appname || "").trim();
-  const templateId = String(body.templateId || "").trim();
-  const enableApi = normalizeBoolean(body.enableApi, false);
+  const templateId = String(body.templateId || body.starterId || config.DEFAULT_TEMPLATE_ID)
+    .trim()
+    .toLowerCase();
 
-  validateAppParams(userid, appname);
+  assertAppName(appname);
   assertTemplateId(templateId);
 
   return {
-    userid,
     appname,
-    templateId,
-    enableApi
+    templateId
   };
+}
+
+function resolveRequestUserId(req) {
+  const userid = String(req.auth?.user?.username || "").trim().toLowerCase();
+  if (!userid) {
+    throw new AppError(401, "Unauthorized");
+  }
+  assertUserId(userid);
+  return userid;
 }
 
 async function pathExists(targetPath) {
@@ -476,6 +494,67 @@ async function readAppMeta(appDir) {
   }
 }
 
+async function readTemplateMeta(templateId) {
+  const templateDir = getTemplateDir(templateId);
+  const templateMetaPath = path.join(templateDir, "template.json");
+  const fallback = {
+    id: templateId,
+    name: templateId,
+    description: "",
+    version: null,
+    internalPort: 3000
+  };
+
+  try {
+    const raw = await fs.readFile(templateMetaPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      return fallback;
+    }
+
+    const id = String(parsed.id || templateId).trim().toLowerCase();
+    if (!TEMPLATE_ID_REGEX.test(id)) {
+      return fallback;
+    }
+
+    return {
+      id,
+      name: String(parsed.name || id).trim() || id,
+      description: String(parsed.description || "").trim(),
+      version: parsed.version ? String(parsed.version) : null,
+      internalPort: Number.parseInt(String(parsed.internalPort || "3000"), 10) || 3000
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+async function listAvailableTemplates() {
+  const templateEntries = await safeReadDir(config.PAAS_TEMPLATES_DIR);
+  const templates = [];
+
+  for (const entry of templateEntries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+    const templateId = String(entry.name || "").trim().toLowerCase();
+    if (!TEMPLATE_ID_REGEX.test(templateId)) {
+      continue;
+    }
+
+    const templateDir = getTemplateDir(templateId);
+    if (!(await pathExists(path.join(templateDir, "app")))) {
+      continue;
+    }
+
+    const meta = await readTemplateMeta(templateId);
+    templates.push(meta);
+  }
+
+  templates.sort((a, b) => a.id.localeCompare(b.id));
+  return templates;
+}
+
 async function writeAppMeta(appDir, metaPayload) {
   const metaPath = path.join(appDir, APP_META_FILE);
   const content = JSON.stringify(metaPayload, null, 2);
@@ -497,18 +576,25 @@ async function runCommand(command, args, options = {}) {
 }
 
 async function runRunnerScript(scriptName, args) {
-  const scriptPath = getRunnerPath(scriptName);
+  const safeScriptName = path.basename(String(scriptName || "").trim());
+  if (!safeScriptName || safeScriptName !== scriptName) {
+    throw new AppError(500, `Invalid runner script name: ${scriptName}`);
+  }
+
+  const scriptPath = getRunnerPath(safeScriptName);
   if (!(await pathExists(scriptPath))) {
-    throw new AppError(503, `Runner script not found: ${scriptName}`);
+    throw new AppError(503, `Runner script not found: ${safeScriptName}`);
   }
 
   try {
-    return await runCommand("bash", [scriptPath, ...args]);
+    return await runCommand("bash", [`./${safeScriptName}`, ...args], {
+      cwd: config.PAAS_SCRIPTS_DIR
+    });
   } catch (error) {
     if (error.code === "ENOENT") {
       throw new AppError(503, "bash command is not available");
     }
-    throw new AppError(500, `${scriptName} failed: ${summarizeCommandError(error)}`);
+    throw new AppError(500, `${safeScriptName} failed: ${summarizeCommandError(error)}`);
   }
 }
 
@@ -519,7 +605,7 @@ async function runDockerCompose(appDir, args) {
   }
 
   try {
-    return await runCommand("docker", ["compose", "-f", composePath, ...args], {
+    return await runCommand("docker", ["compose", "-f", "docker-compose.yml", ...args], {
       cwd: appDir
     });
   } catch (error) {
@@ -628,10 +714,22 @@ async function buildAppInfo(userid, appname, statusMap) {
     containerName: appContainerName,
     status: normalizeStatus(rawStatus),
     rawStatus,
-    templateId: metadata?.templateId || null,
-    enableApi: normalizeBoolean(metadata?.enableApi, false),
+    templateId: metadata?.templateId || metadata?.starterId || config.DEFAULT_TEMPLATE_ID,
     createdAt: metadata?.createdAt || null,
     appDir
+  };
+}
+
+function toClientAppView(appInfo) {
+  if (!appInfo) {
+    return null;
+  }
+  return {
+    userid: appInfo.userid,
+    appname: appInfo.appname,
+    domain: appInfo.domain,
+    status: appInfo.status,
+    containerName: appInfo.containerName
   };
 }
 
@@ -667,29 +765,43 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.get("/config", (req, res) => {
-  const access = getAdminAccessContext(req);
-  return sendOk(res, {
-    domain: config.PAAS_DOMAIN,
-    limits: {
-      maxAppsPerUser: config.MAX_APPS_PER_USER,
-      maxTotalApps: config.MAX_TOTAL_APPS
-    },
-    defaults: {
-      templateId: "diary-v1",
-      adminId: "admin"
-    },
-    auth: authService.getPublicConfig(),
-    security: {
-      hostSplitEnabled: config.PORTAL_HOST_SPLIT_ENABLED,
-      publicHost: config.PORTAL_PUBLIC_HOST || null,
-      adminHost: config.PORTAL_ADMIN_HOST || null,
-      adminAccessListEnabled: config.PORTAL_ADMIN_ALLOWED_IPS.length > 0,
-      currentHost: getRequestHost(req) || null,
-      currentHostType: getHostType(req),
-      adminAccessAllowedForRequest: access.allowed
-    }
-  });
+app.get("/config", async (req, res, next) => {
+  try {
+    const access = getAdminAccessContext(req);
+    const templates = await listAvailableTemplates();
+    const defaultTemplateId = templates.some((item) => item.id === config.DEFAULT_TEMPLATE_ID)
+      ? config.DEFAULT_TEMPLATE_ID
+      : templates[0]?.id || config.DEFAULT_TEMPLATE_ID;
+
+    return sendOk(res, {
+      domain: config.PAAS_DOMAIN,
+      limits: {
+        maxAppsPerUser: config.MAX_APPS_PER_USER,
+        maxTotalApps: config.MAX_TOTAL_APPS
+      },
+      templates,
+      defaults: {
+        templateId: defaultTemplateId
+      },
+      auth: authService.getPublicConfig(),
+      appAccess: {
+        headerName: "X-App-Key",
+        infoPath: "/bridge/apps/{userid}/{appname}",
+        activatePath: "/bridge/apps/{userid}/{appname}/activate"
+      },
+      security: {
+        hostSplitEnabled: config.PORTAL_HOST_SPLIT_ENABLED,
+        publicHost: config.PORTAL_PUBLIC_HOST || null,
+        adminHost: config.PORTAL_ADMIN_HOST || null,
+        adminAccessListEnabled: config.PORTAL_ADMIN_ALLOWED_IPS.length > 0,
+        currentHost: getRequestHost(req) || null,
+        currentHostType: getHostType(req),
+        adminAccessAllowedForRequest: access.allowed
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 app.get("/", (req, res) => {
@@ -736,10 +848,11 @@ app.use(
 
 app.post("/apps", async (req, res, next) => {
   try {
-    const { userid, appname, templateId, enableApi } = validateCreateBody(req.body);
+    const userid = resolveRequestUserId(req);
+    const { appname, templateId } = validateCreateBody(req.body);
 
     const templateDir = getTemplateDir(templateId);
-    if (!(await pathExists(templateDir))) {
+    if (!(await pathExists(templateDir)) || !(await pathExists(path.join(templateDir, "app")))) {
       throw new AppError(400, `Template not found: ${templateId}`);
     }
 
@@ -760,8 +873,7 @@ app.post("/apps", async (req, res, next) => {
     const scriptResult = await runRunnerScript("create.sh", [
       userid,
       appname,
-      templateId,
-      String(enableApi)
+      templateId
     ]);
 
     const createdAt = new Date().toISOString();
@@ -771,7 +883,6 @@ app.post("/apps", async (req, res, next) => {
         userid,
         appname,
         templateId,
-        enableApi,
         createdAt
       });
     } catch (error) {
@@ -920,9 +1031,104 @@ app.get("/apps/:userid/:appname/logs", async (req, res, next) => {
   }
 });
 
+app.get("/apps/:userid/:appname/client-keys", async (req, res, next) => {
+  try {
+    const { userid, appname } = await resolveAppRequestContext(req);
+    const keys = appAccessService.listKeys({ userid, appname });
+    return sendOk(res, {
+      keys,
+      total: keys.length
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post("/apps/:userid/:appname/client-keys", async (req, res, next) => {
+  try {
+    const { userid, appname } = await resolveAppRequestContext(req);
+    const name = String(req.body?.name || "").trim();
+    const issued = appAccessService.issueKey({
+      userid,
+      appname,
+      name
+    });
+
+    return sendOk(
+      res,
+      {
+        clientKey: issued.clientKey,
+        item: issued.item
+      },
+      201
+    );
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete("/apps/:userid/:appname/client-keys/:id", async (req, res, next) => {
+  try {
+    const { userid, appname } = await resolveAppRequestContext(req);
+    const keyId = Number.parseInt(String(req.params.id || ""), 10);
+    if (!Number.isInteger(keyId) || keyId <= 0) {
+      throw new AppError(400, "Invalid key id");
+    }
+    appAccessService.revokeKey({
+      userid,
+      appname,
+      keyId
+    });
+    return sendOk(res, {
+      deleted: true,
+      id: keyId
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.use("/apps", (_req, res) => {
   return sendError(res, 404, "Not found");
 });
+
+app.get(
+  "/bridge/apps/:userid/:appname",
+  appAccessService.requireAppClientKey,
+  async (req, res, next) => {
+    try {
+      const { userid, appname } = await resolveAppRequestContext(req);
+      const appInfo = await buildAppInfo(userid, appname, null);
+      return sendOk(res, {
+        app: toClientAppView(appInfo)
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+app.post(
+  "/bridge/apps/:userid/:appname/activate",
+  appAccessService.requireAppClientKey,
+  async (req, res, next) => {
+    try {
+      const { userid, appname, appDir } = await resolveAppRequestContext(req);
+      const result = await runDockerCompose(appDir, ["up", "-d"]);
+      const status = await getDockerContainerStatus(userid, appname);
+      const appInfo = await buildAppInfo(userid, appname, null);
+      return sendOk(res, {
+        app: toClientAppView({
+          ...appInfo,
+          status: normalizeStatus(status)
+        }),
+        output: result.stdout || "activated"
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
 
 app.get("/users", (_req, res, next) => {
   try {
@@ -992,6 +1198,7 @@ async function start() {
   validateHostAccessConfig();
   await ensureBaseDirectories();
   await authService.init();
+  await appAccessService.init();
   app.listen(config.PORTAL_PORT, () => {
     console.log(`[portal] listening on http://localhost:${config.PORTAL_PORT}`);
     console.log(`[portal] env: ${envFilePath}`);

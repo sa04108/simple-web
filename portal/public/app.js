@@ -8,6 +8,7 @@ const DEFAULT_OPS_TAB = AVAILABLE_OPS_TABS[0] || "ops";
 
 const state = {
   domain: "my.domain.com",
+  templates: [],
   apps: [],
   apiKeys: [],
   users: [],
@@ -44,10 +45,8 @@ const el = {
   settingsModal: document.getElementById("settings-modal"),
   settingsError: document.getElementById("settings-error"),
   createForm: document.getElementById("create-form"),
-  useridInput: document.getElementById("userid-input"),
   appnameInput: document.getElementById("appname-input"),
-  templateInput: document.getElementById("template-input"),
-  enableApiInput: document.getElementById("enable-api-input"),
+  templateSelect: document.getElementById("template-select"),
   domainPreview: document.getElementById("domain-preview"),
   domainChip: document.getElementById("domain-chip"),
   limitChip: document.getElementById("limit-chip"),
@@ -213,9 +212,46 @@ function redirectToAuth() {
 }
 
 function syncDomainPreview() {
-  const userid = el.useridInput.value.trim() || "userid";
+  const userid = String(state.user?.username || "").trim() || "owner";
   const appname = el.appnameInput.value.trim() || "appname";
   el.domainPreview.textContent = `${userid}-${appname}.${state.domain}`;
+}
+
+function renderTemplateOptions(selectedTemplateId) {
+  if (!el.templateSelect) {
+    return;
+  }
+
+  const templates = Array.isArray(state.templates) ? state.templates : [];
+  const fallbackTemplateId = selectedTemplateId || "node-lite-v1";
+  const resolvedItems = templates.length
+    ? templates
+    : [
+        {
+          id: fallbackTemplateId,
+          name: fallbackTemplateId,
+          description: "",
+        },
+      ];
+
+  el.templateSelect.innerHTML = resolvedItems
+    .map((item) => {
+      const id = escapeHtml(item.id || "");
+      const name = escapeHtml(item.name || item.id || "");
+      const description = String(item.description || "").trim();
+      const label = description ? `${name} - ${escapeHtml(description)}` : name;
+      return `<option value="${id}">${label}</option>`;
+    })
+    .join("");
+
+  const preferredTemplateId =
+    String(selectedTemplateId || "").trim().toLowerCase() || resolvedItems[0].id;
+  const hasPreferredTemplate = resolvedItems.some(
+    (item) => String(item.id || "").toLowerCase() === preferredTemplateId,
+  );
+  el.templateSelect.value = hasPreferredTemplate
+    ? preferredTemplateId
+    : String(resolvedItems[0].id || "").toLowerCase();
 }
 
 function getVisibleNewApiKey() {
@@ -504,11 +540,10 @@ function renderApps(apps) {
       const safeUser = escapeHtml(appItem.userid);
       const safeApp = escapeHtml(appItem.appname);
       const safeDomain = escapeHtml(appItem.domain || "-");
-      const safeTemplate = escapeHtml(appItem.templateId || "-");
+      const safeTemplate = escapeHtml(appItem.templateId || appItem.starterId || "-");
       const rawStatus = appItem.status || "unknown";
       const safeStatus = escapeHtml(rawStatus);
       const safeCreatedAt = escapeHtml(formatDate(appItem.createdAt));
-      const apiEnabled = appItem.enableApi ? "on" : "off";
 
       return `
         <article class="app-card" data-userid="${safeUser}" data-appname="${safeApp}">
@@ -517,7 +552,7 @@ function renderApps(apps) {
             <span class="status-pill ${statusClass(rawStatus)}">${safeStatus}</span>
           </div>
           <p class="app-domain">${safeDomain}</p>
-          <p class="app-meta">template: ${safeTemplate} | api: ${apiEnabled} | created: ${safeCreatedAt}</p>
+          <p class="app-meta">template: ${safeTemplate} | created: ${safeCreatedAt}</p>
           <div class="app-actions">
             <button class="action-btn" data-action="logs" type="button" ${actionsDisabled}>Logs</button>
             <button class="action-btn" data-action="start" type="button" ${actionsDisabled}>Start</button>
@@ -717,6 +752,11 @@ async function handleSettingsModalError(error) {
 async function loadConfig() {
   const data = await apiFetch("/config");
   state.domain = data.domain || "my.domain.com";
+  state.templates = Array.isArray(data.templates)
+    ? data.templates
+    : Array.isArray(data.starters)
+      ? data.starters
+      : [];
   state.security = {
     hostSplitEnabled: Boolean(data.security?.hostSplitEnabled),
     publicHost: data.security?.publicHost || null,
@@ -727,9 +767,12 @@ async function loadConfig() {
   };
   el.domainChip.textContent = state.domain;
   el.limitChip.textContent = `${data.limits.maxAppsPerUser}/${data.limits.maxTotalApps}`;
-  if (!el.templateInput.value) {
-    el.templateInput.value = data.defaults.templateId || "diary-v1";
-  }
+  renderTemplateOptions(
+    data.defaults?.templateId ||
+      data.defaults?.starterId ||
+      state.templates[0]?.id ||
+      "node-lite-v1",
+  );
   syncDomainPreview();
 }
 
@@ -738,11 +781,13 @@ async function loadSession() {
     const data = await apiFetch("/auth/me");
     state.user = data.user || null;
     updateAuthUi();
+    syncDomainPreview();
     return true;
   } catch (error) {
     if (error.status === 401) {
       state.user = null;
       updateAuthUi();
+      syncDomainPreview();
       return false;
     }
     throw error;
@@ -802,14 +847,12 @@ async function handleCreate(event) {
   }
 
   const body = {
-    userid: el.useridInput.value.trim(),
     appname: el.appnameInput.value.trim(),
-    templateId: el.templateInput.value.trim(),
-    enableApi: el.enableApiInput.checked,
+    templateId: el.templateSelect.value.trim(),
   };
 
-  if (!body.userid || !body.appname || !body.templateId) {
-    throw new Error("userid, appname, templateId를 입력하세요.");
+  if (!body.appname || !body.templateId) {
+    throw new Error("appname, template를 입력하세요.");
   }
 
   setBanner("앱 생성 요청 중...", "info");
@@ -921,7 +964,6 @@ async function bootstrap() {
   setBanner(hint || "로그인 상태가 확인되었습니다.", hint ? "info" : "success");
 }
 
-el.useridInput.addEventListener("input", syncDomainPreview);
 el.appnameInput.addEventListener("input", syncDomainPreview);
 
 el.gnbItems.forEach((item) => {

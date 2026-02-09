@@ -179,49 +179,28 @@
                     </header>
                     <article class="panel create-panel">
                         <form id="create-form" novalidate>
-                            <label for="userid-input">User ID</label>
-                            <input
-                                id="userid-input"
-                                name="userid"
-                                type="text"
-                                placeholder="alice"
-                                required
-                            />
-
                             <label for="appname-input">App Name</label>
                             <input
                                 id="appname-input"
                                 name="appname"
                                 type="text"
-                                placeholder="diary"
+                                placeholder="myapp"
                                 required
                             />
 
-                            <label for="template-input">Template ID</label>
-                            <input
-                                id="template-input"
-                                name="templateId"
-                                type="text"
-                                value="diary-v1"
-                                required
-                            />
-
-                            <label class="checkbox-row" for="enable-api-input">
-                                <input
-                                    id="enable-api-input"
-                                    name="enableApi"
-                                    type="checkbox"
-                                    checked
-                                />
-                                <span>SQLite API 활성화</span>
-                            </label>
+                            <label for="template-select">Template</label>
+                            <select id="template-select" name="templateId" required>
+                                <option value="" disabled selected>
+                                    Loading templates...
+                                </option>
+                            </select>
 
                             <div class="preview-text preview-row preview-row-domain">
                                 <span class="preview-label">예상 주소:</span>
                                 <code
                                     id="domain-preview"
                                     class="preview-code"
-                                    >userid-appname.my.domain.com</code
+                                    >owner-appname.my.domain.com</code
                                 >
                             </div>
 
