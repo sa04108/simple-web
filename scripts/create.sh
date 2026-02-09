@@ -77,8 +77,8 @@ if [[ ! -d "${TEMPLATE_DIR}/app" ]]; then
 fi
 
 if [[ ! -d "${SHARED_MODULES_DIR}" ]]; then
-  echo "Shared node_modules not found for template ${TEMPLATE_ID}. Run init-modules.sh first." >&2
-  exit 1
+  echo "[create] Shared node_modules not found for ${TEMPLATE_ID}, initializing..."
+  bash "${SCRIPT_DIR}/init-modules.sh" "${TEMPLATE_ID}"
 fi
 if [[ -e "${APP_DIR}" ]]; then
   echo "App already exists: ${USER_ID}/${APP_NAME}" >&2

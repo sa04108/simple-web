@@ -32,6 +32,8 @@ fi
 
 PAAS_ROOT="${PAAS_ROOT:-${PAAS_ROOT_DEFAULT}}"
 PAAS_APPS_DIR="${PAAS_APPS_DIR:-${PAAS_ROOT}/apps}"
+PAAS_SHARED_DIR="${PAAS_SHARED_DIR:-${PAAS_ROOT}/shared}"
+DEFAULT_TEMPLATE_ID="${DEFAULT_TEMPLATE_ID:-${DEFAULT_STARTER_ID:-node-lite-v1}}"
 
 usage() {
   echo "Usage: deploy.sh <userid> <appname>" >&2
@@ -66,6 +68,21 @@ fi
 if [[ ! -f "${COMPOSE_FILE}" ]]; then
   echo "docker-compose.yml not found: ${COMPOSE_FILE}" >&2
   exit 1
+fi
+
+# 앱의 templateId를 읽어서 공유 node_modules 존재 여부 확인
+TEMPLATE_ID="${DEFAULT_TEMPLATE_ID}"
+if [[ -f "${APP_DIR}/template.json" ]]; then
+  PARSED_ID="$(grep -o '"id"\s*:\s*"[^"]*"' "${APP_DIR}/template.json" | head -1 | sed 's/.*"id"\s*:\s*"\([^"]*\)".*/\1/')"
+  if [[ -n "${PARSED_ID}" ]]; then
+    TEMPLATE_ID="${PARSED_ID}"
+  fi
+fi
+
+SHARED_MODULES_DIR="${PAAS_SHARED_DIR}/${TEMPLATE_ID}/node_modules"
+if [[ ! -d "${SHARED_MODULES_DIR}" ]]; then
+  echo "[deploy] Shared node_modules not found for ${TEMPLATE_ID}, initializing..."
+  bash "${SCRIPT_DIR}/init-modules.sh" "${TEMPLATE_ID}"
 fi
 
 mkdir -p "${LOG_DIR}"

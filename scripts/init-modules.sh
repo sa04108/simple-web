@@ -8,11 +8,11 @@
 #   모든 앱 컨테이너가 이 디렉토리를 read-only로 마운트한다.
 #   이를 통해 프로젝트 전체에서 node_modules가 하나만 존재하게 된다.
 #
-# 사용법:
-#   init-modules.sh [templateId]        # 특정 템플릿만 초기화
-#   init-modules.sh                     # 기본 템플릿(node-lite-v1) 초기화
+#   create.sh, deploy.sh에서 공유 모듈이 없을 때 자동으로 호출된다.
+#   수동으로 실행하여 의존성을 갱신할 수도 있다.
 #
-# 의존성 갱신 시에도 이 스크립트를 다시 실행하면 된다.
+# 사용법:
+#   init-modules.sh [templateId]
 # =============================================================================
 set -euo pipefail
 
