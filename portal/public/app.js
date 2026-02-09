@@ -29,12 +29,6 @@ const state = {
   refreshTimer: null,
   activeView: DEFAULT_VIEW,
   activeTab: DEFAULT_OPS_TAB,
-  security: {
-    hostSplitEnabled: false,
-    publicHost: null,
-    adminHost: null,
-    adminAccessAllowedForRequest: true,
-  },
 };
 
 const el = {
@@ -206,17 +200,6 @@ function canManageApps() {
 
 function canManageUsers() {
   return canManageApps() && isAdminUser();
-}
-
-function getAdminAccessHint() {
-  if (
-    !state.security.hostSplitEnabled ||
-    state.security.adminAccessAllowedForRequest
-  ) {
-    return "";
-  }
-  const adminHost = state.security.adminHost || "admin host";
-  return `현재 호스트에서는 admin 관리 기능을 사용할 수 없습니다. ${adminHost}로 접속하세요.`;
 }
 
 function redirectToAuth() {
@@ -766,14 +749,6 @@ async function loadConfig() {
   const data = await apiFetch("/config");
   state.domain = data.domain || "my.domain.com";
   state.templates = Array.isArray(data.templates) ? data.templates : [];
-  state.security = {
-    hostSplitEnabled: Boolean(data.security?.hostSplitEnabled),
-    publicHost: data.security?.publicHost || null,
-    adminHost: data.security?.adminHost || null,
-    adminAccessAllowedForRequest: Boolean(
-      data.security?.adminAccessAllowedForRequest,
-    ),
-  };
   el.domainChip.textContent = state.domain;
   el.limitChip.textContent = `${data.limits.maxAppsPerUser}/${data.limits.maxTotalApps}`;
   renderTemplateOptions(data.defaults?.templateId || "");
@@ -960,12 +935,11 @@ async function bootstrap() {
   persistUiState();
 
   await refreshDashboardData();
-  const hint = getAdminAccessHint();
   if (isPasswordLocked()) {
-    setBanner(hint || "초기 비밀번호를 우상단 설정에서 변경하세요.", "error");
+    setBanner("초기 비밀번호를 우상단 설정에서 변경하세요.", "error");
     return;
   }
-  setBanner(hint || "로그인 상태가 확인되었습니다.", hint ? "info" : "success");
+  setBanner("로그인 상태가 확인되었습니다.", "success");
 }
 
 el.appnameInput.addEventListener("input", syncDomainPreview);

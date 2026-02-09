@@ -4,20 +4,10 @@
 // 역할:
 //   로그인 폼 처리 및 인증 흐름을 담당한다.
 //   - 사용자명/비밀번호 기반 로그인 (POST /auth/login)
-//   - host split 모드 시 공개 호스트에서 관리자 로그인 차단 안내
 //   - 이미 로그인된 경우 대시보드로 자동 리다이렉트
 // =============================================================================
-const state = {
-  security: {
-    hostSplitEnabled: false,
-    adminHost: null,
-    adminAccessAllowedForRequest: true
-  }
-};
-
 const el = {
   statusBanner: document.getElementById("status-banner"),
-  hostHint: document.getElementById("auth-host-hint"),
   loginForm: document.getElementById("login-form"),
   loginUsernameInput: document.getElementById("login-username-input"),
   loginPasswordInput: document.getElementById("login-password-input")
@@ -49,31 +39,7 @@ async function apiFetch(path, options = {}) {
   return payload.data;
 }
 
-function renderHostHint() {
-  if (state.security.hostSplitEnabled && !state.security.adminAccessAllowedForRequest) {
-    const adminHost = state.security.adminHost || "admin host";
-    el.hostHint.hidden = false;
-    el.hostHint.textContent = `현재 호스트에서는 admin 로그인이 제한됩니다. ${adminHost}로 접속하세요.`;
-    return;
-  }
-  el.hostHint.hidden = true;
-  el.hostHint.textContent = "";
-}
-
-async function loadConfig() {
-  const data = await apiFetch("/config");
-  state.security = {
-    hostSplitEnabled: Boolean(data.security?.hostSplitEnabled),
-    adminHost: data.security?.adminHost || null,
-    adminAccessAllowedForRequest: Boolean(data.security?.adminAccessAllowedForRequest)
-  };
-  renderHostHint();
-}
-
 async function redirectIfLoggedIn() {
-  if (state.security.hostSplitEnabled && !state.security.adminAccessAllowedForRequest) {
-    return false;
-  }
   try {
     await apiFetch("/auth/me");
     window.location.replace("/");
@@ -107,7 +73,6 @@ el.loginForm.addEventListener("submit", async (event) => {
 });
 
 async function bootstrap() {
-  await loadConfig();
   const loggedIn = await redirectIfLoggedIn();
   if (!loggedIn) {
     el.loginUsernameInput.focus();
