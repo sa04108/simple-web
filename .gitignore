@@ -140,3 +140,4 @@ vite.config.ts.timestamp-*
 
 # Local portal database
 portal-data/
+apps

@@ -17,6 +17,10 @@ const AVAILABLE_VIEWS = ["dashboard", "create", "ops", "users"];
 const AVAILABLE_OPS_TABS = ["ops", "logs"];
 const DEFAULT_VIEW = AVAILABLE_VIEWS[0] || "dashboard";
 const DEFAULT_OPS_TAB = AVAILABLE_OPS_TABS[0] || "ops";
+const CREATE_FIELD_INVALID_CLASS = "field-invalid";
+const CREATE_FIELD_SHAKE_CLASS = "field-shake";
+const CREATE_FIELD_SEQUENCE_GAP_MS = 120;
+const CREATE_FIELD_SHAKE_DURATION_MS = 320;
 
 const state = {
   domain: "my.domain.com",
@@ -110,6 +114,8 @@ const modalBackdropState = {
   deleteUser: false,
 };
 
+const createValidationTimers = [];
+
 function setBanner(message, type = "info") {
   el.statusBanner.className = `status-banner ${type}`;
   el.statusBanner.textContent = message;
@@ -142,6 +148,78 @@ function setCreateUserError(message = "") {
 
 function setDeleteUserError(message = "") {
   setInlineError(el.deleteUserError, message);
+}
+
+function queueCreateValidationTimer(callback, delayMs) {
+  const timerId = window.setTimeout(callback, delayMs);
+  createValidationTimers.push(timerId);
+}
+
+function clearCreateValidationTimers() {
+  while (createValidationTimers.length) {
+    const timerId = createValidationTimers.pop();
+    window.clearTimeout(timerId);
+  }
+}
+
+function clearCreateFieldFeedback(field) {
+  if (!field) {
+    return;
+  }
+  field.classList.remove(CREATE_FIELD_INVALID_CLASS);
+  field.classList.remove(CREATE_FIELD_SHAKE_CLASS);
+  field.removeAttribute("aria-invalid");
+}
+
+function highlightCreateField(field) {
+  if (!field) {
+    return;
+  }
+  field.classList.add(CREATE_FIELD_INVALID_CLASS);
+  field.setAttribute("aria-invalid", "true");
+  field.classList.remove(CREATE_FIELD_SHAKE_CLASS);
+  void field.offsetWidth;
+  field.classList.add(CREATE_FIELD_SHAKE_CLASS);
+  queueCreateValidationTimer(() => {
+    field.classList.remove(CREATE_FIELD_SHAKE_CLASS);
+  }, CREATE_FIELD_SHAKE_DURATION_MS);
+}
+
+function validateCreateForm() {
+  const requiredFields = [
+    {
+      field: el.appnameInput,
+      isMissing: () => !el.appnameInput.value.trim(),
+    },
+    {
+      field: el.templateSelect,
+      isMissing: () => !el.templateSelect.value.trim(),
+    },
+  ];
+
+  clearCreateValidationTimers();
+  requiredFields.forEach((item) => {
+    clearCreateFieldFeedback(item.field);
+  });
+
+  const missingFields = requiredFields.filter((item) => item.isMissing());
+  if (!missingFields.length) {
+    return true;
+  }
+
+  missingFields.forEach((item, index) => {
+    queueCreateValidationTimer(() => {
+      if (item.isMissing()) {
+        highlightCreateField(item.field);
+      }
+    }, index * CREATE_FIELD_SEQUENCE_GAP_MS);
+  });
+
+  if (missingFields[0]?.field) {
+    missingFields[0].field.focus();
+  }
+
+  return false;
 }
 
 function readPersistedUiState() {
@@ -830,7 +908,7 @@ async function handleCreate(event) {
     templateId: el.templateSelect.value.trim(),
   };
 
-  if (!body.appname || !body.templateId) {
+  if (!validateCreateForm()) {
     throw new Error("appname, template를 입력하세요.");
   }
 
@@ -942,7 +1020,14 @@ async function bootstrap() {
   setBanner("로그인 상태가 확인되었습니다.", "success");
 }
 
-el.appnameInput.addEventListener("input", syncDomainPreview);
+el.appnameInput.addEventListener("input", () => {
+  clearCreateFieldFeedback(el.appnameInput);
+  syncDomainPreview();
+});
+
+el.templateSelect.addEventListener("change", () => {
+  clearCreateFieldFeedback(el.templateSelect);
+});
 
 el.gnbItems.forEach((item) => {
   item.addEventListener("click", () => {

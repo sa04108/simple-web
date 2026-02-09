@@ -361,6 +361,15 @@ select:focus {
   transform: translateY(-1px);
 }
 
+.field-invalid {
+  border-color: rgba(var(--danger-rgb), 0.66) !important;
+  box-shadow: 0 0 0 4px rgba(var(--danger-rgb), 0.16);
+}
+
+.field-shake {
+  animation: field-shake 0.28s ease-in-out;
+}
+
 button {
   border: 1px solid transparent;
   border-radius: 12px;
@@ -1059,6 +1068,25 @@ code {
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes field-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-4px);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
   }
 }
 
