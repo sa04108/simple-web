@@ -43,7 +43,6 @@ const config = {
   DEFAULT_TEMPLATE_ID:
     process.env.DEFAULT_TEMPLATE_ID || "node-lite-v1",
   PORTAL_PORT: toPositiveInt(process.env.PORTAL_PORT, 3000),
-  PORTAL_API_KEY: process.env.PORTAL_API_KEY || "changeme-random-secret",
   PORTAL_DB_PATH: process.env.PORTAL_DB_PATH || path.join(paasRoot, "portal-data", "portal.sqlite3"),
   SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME || "paas_portal_session",
   SESSION_TTL_HOURS: toPositiveInt(process.env.SESSION_TTL_HOURS, 168),
@@ -337,7 +336,6 @@ const authService = createAuthService({
   sessionTtlHours: config.SESSION_TTL_HOURS,
   cookieSecure: config.PORTAL_COOKIE_SECURE,
   bcryptRounds: config.BCRYPT_ROUNDS,
-  legacyApiKey: config.PORTAL_API_KEY,
   sendOk,
   sendError,
   AppError
@@ -1248,9 +1246,6 @@ async function start() {
           `[portal] admin allowlist: ${config.PORTAL_ADMIN_ALLOWED_IPS.join(", ")}`
         );
       }
-    }
-    if (authService.isLegacyApiKeyEnabled()) {
-      console.log("[portal] legacy X-API-Key is enabled from PORTAL_API_KEY");
     }
   });
 }

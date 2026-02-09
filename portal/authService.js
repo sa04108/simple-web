@@ -115,7 +115,6 @@ function createAuthService(options) {
     sessionTtlHours: Number(options.sessionTtlHours) > 0 ? Number(options.sessionTtlHours) : 168,
     cookieSecure: Boolean(options.cookieSecure),
     bcryptRounds: Number(options.bcryptRounds) > 0 ? Number(options.bcryptRounds) : 10,
-    legacyApiKey: String(options.legacyApiKey || "").trim()
   };
 
   const sendOk = options.sendOk;
@@ -256,23 +255,6 @@ function createAuthService(options) {
     };
   }
 
-  function authenticateLegacyApiKey(rawApiKey) {
-    if (!config.legacyApiKey) {
-      return null;
-    }
-    if (!safeEqual(rawApiKey, config.legacyApiKey)) {
-      return null;
-    }
-    const adminUser = statements.selectUserByUsername.get("admin");
-    if (!adminUser) {
-      return null;
-    }
-    return {
-      method: "legacy-api-key",
-      apiKeyId: null,
-      user: toPublicUser(adminUser)
-    };
-  }
 
   function resolveAnyAuth(req) {
     const sessionToken = parseCookieValue(req, config.sessionCookieName);
@@ -285,7 +267,7 @@ function createAuthService(options) {
 
     const apiKey = String(req.get("X-API-Key") || "").trim();
     if (apiKey) {
-      return authenticateApiKey(apiKey) || authenticateLegacyApiKey(apiKey);
+      return authenticateApiKey(apiKey);
     }
     return null;
   }
@@ -790,8 +772,7 @@ function createAuthService(options) {
     createUser,
     deleteUser,
     getPublicConfig,
-    getDbPath: () => config.dbPath,
-    isLegacyApiKeyEnabled: () => Boolean(config.legacyApiKey)
+    getDbPath: () => config.dbPath
   };
 }
 
