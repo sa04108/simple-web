@@ -265,7 +265,7 @@ function isLoggedIn() {
 }
 
 function isAdminUser() {
-  return String(state.user?.role || "") === "paas-admin";
+  return String(state.user?.role || "") === "admin";
 }
 
 function isPasswordLocked() {

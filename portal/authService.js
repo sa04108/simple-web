@@ -19,8 +19,8 @@ const crypto = require("node:crypto");
 const bcrypt = require("bcryptjs");
 const Database = require("better-sqlite3");
 
-const ROLE_PAAS_ADMIN = "paas-admin";
-const ROLE_PAAS_USER = "paas-user";
+const ROLE_ADMIN = "admin";
+const ROLE_USER = "user";
 const USERNAME_REGEX = /^[a-z][a-z0-9]{2,19}$/;
 const SESSION_TOKEN_PREFIX = "sess";
 const API_KEY_TOKEN_PREFIX = "paas";
@@ -111,7 +111,7 @@ function parseCookieValue(req, cookieName) {
 function createAuthService(options) {
   const config = {
     dbPath: options.dbPath,
-    sessionCookieName: options.sessionCookieName || "paas_portal_session",
+    sessionCookieName: options.sessionCookieName || "portal_session",
     sessionTtlHours: Number(options.sessionTtlHours) > 0 ? Number(options.sessionTtlHours) : 168,
     cookieSecure: Boolean(options.cookieSecure),
     bcryptRounds: Number(options.bcryptRounds) > 0 ? Number(options.bcryptRounds) : 10,
@@ -132,7 +132,7 @@ function createAuthService(options) {
     return {
       id: Number(row.id),
       username: String(row.username),
-      role: String(row.role || ROLE_PAAS_ADMIN),
+      role: String(row.role || ROLE_ADMIN),
       mustChangePassword: normalizeBoolean(row.mustChangePassword, false)
     };
   }
@@ -154,7 +154,7 @@ function createAuthService(options) {
       id: Number(row.id),
       username: String(row.username || ""),
       role,
-      isAdmin: role === ROLE_PAAS_ADMIN,
+      isAdmin: role === ROLE_ADMIN,
       createdAt: row.createdAt || null,
       lastAccessAt: row.lastAccessAt || null
     };
@@ -300,7 +300,7 @@ function createAuthService(options) {
   }
 
   function requirePaasAdmin(req, res, next) {
-    if (req.auth?.user?.role !== ROLE_PAAS_ADMIN) {
+    if (req.auth?.user?.role !== ROLE_ADMIN) {
       return sendError(res, 403, "Forbidden");
     }
     return next();
@@ -322,7 +322,7 @@ function createAuthService(options) {
     const username = String(payload?.username || "").trim();
     const password = String(payload?.password || "");
     const isAdmin = normalizeBoolean(payload?.isAdmin, false);
-    const role = isAdmin ? ROLE_PAAS_ADMIN : ROLE_PAAS_USER;
+    const role = isAdmin ? ROLE_ADMIN : ROLE_USER;
 
     if (!USERNAME_REGEX.test(username)) {
       throw new AppError(400, "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/");
@@ -385,7 +385,7 @@ function createAuthService(options) {
     if (!target) {
       throw new AppError(404, "User not found");
     }
-    if (String(target.role || ROLE_PAAS_USER) === ROLE_PAAS_ADMIN) {
+    if (String(target.role || ROLE_USER) === ROLE_ADMIN) {
       throw new AppError(403, "Admin users cannot be removed");
     }
 
@@ -564,7 +564,7 @@ function createAuthService(options) {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
-        role TEXT NOT NULL DEFAULT '${ROLE_PAAS_ADMIN}',
+        role TEXT NOT NULL DEFAULT '${ROLE_ADMIN}',
         must_change_password INTEGER NOT NULL DEFAULT 1,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
@@ -732,7 +732,7 @@ function createAuthService(options) {
         u.role,
         u.created_at
       ORDER BY
-        CASE WHEN u.role = '${ROLE_PAAS_ADMIN}' THEN 0 ELSE 1 END ASC,
+        CASE WHEN u.role = '${ROLE_ADMIN}' THEN 0 ELSE 1 END ASC,
         u.created_at ASC,
         u.id ASC
     `);
@@ -745,7 +745,7 @@ function createAuthService(options) {
     if (!admin) {
       const createdAt = nowIso();
       const hash = bcrypt.hashSync("admin", config.bcryptRounds);
-      statements.insertUser.run("admin", hash, ROLE_PAAS_ADMIN, 1, createdAt, createdAt);
+      statements.insertUser.run("admin", hash, ROLE_ADMIN, 1, createdAt, createdAt);
       console.warn("[portal] bootstrap admin created: id=admin, pw=admin");
     }
 

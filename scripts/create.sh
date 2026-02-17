@@ -73,7 +73,7 @@ node "${TEMPLATE_RUNTIME_TOOL}" compose \
   --userid "${USER_ID}" \
   --appname "${APP_NAME}" \
   --domain "${PAAS_DOMAIN}" \
-  --network "${PAAS_NETWORK}" \
+  --network "${APP_NETWORK}" \
   --shared-dir "${HOST_SHARED_DIR}" \
   --mem-limit "${DEFAULT_MEM_LIMIT}" \
   --cpu-limit "${DEFAULT_CPU_LIMIT}" \

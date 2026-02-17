@@ -42,7 +42,7 @@ const config = {
   PAAS_SHARED_DIR: process.env.PAAS_SHARED_DIR || path.join(paasRoot, "shared"),
   PORTAL_PORT: toPositiveInt(process.env.PORTAL_PORT, 3000),
   PORTAL_DB_PATH: process.env.PORTAL_DB_PATH || path.join(paasRoot, "portal-data", "portal.sqlite3"),
-  SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME || "paas_portal_session",
+  SESSION_COOKIE_NAME: process.env.SESSION_COOKIE_NAME || "portal_session",
   SESSION_TTL_HOURS: toPositiveInt(process.env.SESSION_TTL_HOURS, 168),
   PORTAL_COOKIE_SECURE: normalizeBoolean(process.env.PORTAL_COOKIE_SECURE, false),
   BCRYPT_ROUNDS: toPositiveInt(process.env.BCRYPT_ROUNDS, 10),
