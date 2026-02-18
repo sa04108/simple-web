@@ -2,7 +2,10 @@ services:
   portal:
     build:
       context: .
-      dockerfile: portal/Dockerfile
+      dockerfile_inline: |
+        FROM node:22-alpine
+        RUN apk add --no-cache bash docker-cli git
+        WORKDIR /paas/portal
     image: paas-portal:local
     container_name: paas-portal
     working_dir: /paas/portal
