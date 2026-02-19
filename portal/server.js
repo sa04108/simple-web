@@ -16,8 +16,9 @@
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { constants: fsConstants } = require("node:fs");
-const { execFile } = require("node:child_process");
+const { execFile, spawn } = require("node:child_process");
 const { promisify } = require("node:util");
+const readline = require("node:readline");
 
 const express = require("express");
 const dotenv = require("dotenv");
@@ -294,6 +295,9 @@ async function readAppMeta(appDir) {
 }
 
 async function runCommand(command, args, options = {}) {
+  if (options.stream) {
+    return runCommandStreaming(command, args, options);
+  }
   const result = await execFileAsync(command, args, {
     cwd: options.cwd,
     env: options.env || process.env,
@@ -307,6 +311,50 @@ async function runCommand(command, args, options = {}) {
   };
 }
 
+function runCommandStreaming(command, args, options = {}) {
+  const tag = options.logTag || command;
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env || process.env,
+      windowsHide: true
+    });
+
+    const stdoutLines = [];
+    const stderrLines = [];
+
+    readline
+      .createInterface({ input: child.stdout, crlfDelay: Infinity })
+      .on("line", (line) => {
+        stdoutLines.push(line);
+        console.log(`[portal][${tag}] ${line}`);
+      });
+
+    readline
+      .createInterface({ input: child.stderr, crlfDelay: Infinity })
+      .on("line", (line) => {
+        stderrLines.push(line);
+        console.error(`[portal][${tag}] ${line}`);
+      });
+
+    child.on("close", (code) => {
+      const stdout = stdoutLines.join("\n").trimEnd();
+      const stderr = stderrLines.join("\n").trimEnd();
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        const error = Object.assign(
+          new Error(`Command failed with exit code ${code}`),
+          { stdout, stderr }
+        );
+        reject(error);
+      }
+    });
+
+    child.on("error", reject);
+  });
+}
+
 async function runRunnerScript(scriptName, args) {
   const safeScriptName = path.basename(String(scriptName || "").trim());
   if (!safeScriptName || safeScriptName !== scriptName) {
@@ -318,14 +366,19 @@ async function runRunnerScript(scriptName, args) {
     throw new AppError(503, `Runner script not found: ${safeScriptName}`);
   }
 
+  console.log(`[portal] running ${safeScriptName} args=[${args.join(", ")}]`);
   try {
     const result = await runCommand("bash", [`./${safeScriptName}`, ...args], {
-      cwd: config.PAAS_SCRIPTS_DIR
+      cwd: config.PAAS_SCRIPTS_DIR,
+      stream: true,
+      logTag: safeScriptName
     });
     dockerStatusCache.ts = 0;
+    console.log(`[portal] ${safeScriptName} completed`);
     return result;
   } catch (error) {
     dockerStatusCache.ts = 0;
+    console.error(`[portal] ${safeScriptName} failed`);
     if (error.code === "ENOENT") {
       throw new AppError(503, "bash command is not available");
     }
