@@ -113,11 +113,11 @@
   - fallback `node`
 - Node major 버전은 `package.json > engines.node`에서 추출한다. 기본값은 `22`.
 - 산출 파일:
-  - `apps/<userid>/<appname>/docker-compose.yml`
+  - `apps/<userid>/<appname>/<APP_COMPOSE_FILE>` (기본 `docker-compose.yml`)
   - `apps/<userid>/<appname>/.paas-meta.json`
 - 조건부 산출 파일(저장소 루트에 `Dockerfile`이 없을 때):
-  - `apps/<userid>/<appname>/app/.paas.Dockerfile`
-  - `apps/<userid>/<appname>/app/.paas.dockerignore`
+  - `apps/<userid>/<appname>/<APP_SOURCE_SUBDIR>/.paas.Dockerfile`
+  - `apps/<userid>/<appname>/<APP_SOURCE_SUBDIR>/.paas.dockerignore`
 
 ## 9. Compose/Container 정책
 - 컨테이너 이름: `{APP_CONTAINER_PREFIX}-{userid}-{appname}` (기본 `paas-app`)
@@ -127,8 +127,8 @@
   - `paas.appname=<appname>`
   - `paas.domain=<userid>-<appname>.<PAAS_DOMAIN>`
 - 기본 리소스 제한:
-  - `mem_limit=256m`
-  - `cpus=0.5`
+  - `mem_limit=DEFAULT_MEM_LIMIT` (기본 `256m`)
+  - `cpus=DEFAULT_CPU_LIMIT` (기본 `0.5`)
 - 로그 로테이션:
   - `max-size=10m`
   - `max-file=3`
@@ -142,26 +142,31 @@
 - 프론트 자동 갱신 주기: 30초(`AUTO_REFRESH_MS`)
 
 ## 11. 환경 변수 핵심
-- 경로/도메인:
-  - `PAAS_ROOT`
-  - `PAAS_APPS_DIR`
-  - `PAAS_DOMAIN`
-  - `PAAS_HOST_ROOT`
-- 포털:
-  - `PORTAL_PORT`
-  - `PORTAL_DB_PATH`
-  - `SESSION_COOKIE_NAME`
-  - `SESSION_TTL_HOURS`
-  - `PORTAL_COOKIE_SECURE`
-  - `PORTAL_TRUST_PROXY`
-- 앱 실행:
-  - `APP_NETWORK`
-  - `APP_CONTAINER_PREFIX`
-  - `DEFAULT_MEM_LIMIT`
-  - `DEFAULT_CPU_LIMIT`
-  - `DEFAULT_RESTART_POLICY`
-  - `DEPLOY_TIMEOUT_SECS`
-  - `DEPLOY_LOG_TAIL_LINES`
+
+### 11.1 `.env.example` — 사용자가 설정해야 하는 값
+- 도메인: `PAAS_DOMAIN`
+- 포털: `PORTAL_PORT`, `SESSION_COOKIE_NAME`, `SESSION_TTL_HOURS`, `PORTAL_COOKIE_SECURE`, `BCRYPT_ROUNDS`, `PORTAL_TRUST_PROXY`
+- 컨테이너 기본값: `DEFAULT_MEM_LIMIT`, `DEFAULT_CPU_LIMIT`, `DEFAULT_RESTART_POLICY`
+- 네트워크: `APP_NETWORK`
+- 앱 제한: `MAX_APPS_PER_USER`, `MAX_TOTAL_APPS`
+
+### 11.2 코드 기본값 — override 가능하나 `.env`에 기재 불필요
+경로는 모두 `PAAS_ROOT`(= 스크립트/모듈 위치 기준으로 자동 계산)에서 파생된다.
+
+| 변수 | 기본값 계산 위치 | 기본값 |
+|---|---|---|
+| `PAAS_ROOT` | `common.sh`(스크립트 위치), `server.js`(`repoRoot`), `generate-compose.js`(`/paas`) | 자동 계산 |
+| `PAAS_APPS_DIR` | `common.sh`, `server.js` | `${PAAS_ROOT}/apps` |
+| `PAAS_SCRIPTS_DIR` | `server.js` | `${PAAS_ROOT}/scripts` |
+| `PORTAL_DB_PATH` | `server.js` | `${PAAS_ROOT}/portal-data/portal.sqlite3` |
+| `PAAS_HOST_ROOT` | `docker-compose.yml` (`${PWD}`) | 호스트 현재 디렉토리 |
+| `APP_CONTAINER_PREFIX` | `common.sh` | `paas-app` |
+| `APP_COMPOSE_FILE` | `common.sh`, `generate-compose.js` | `docker-compose.yml` |
+| `APP_SOURCE_SUBDIR` | `common.sh`, `generate-compose.js` | `app` |
+| `APP_DATA_SUBDIR` | `common.sh`, `generate-compose.js` | `data` |
+| `APP_LOGS_SUBDIR` | `common.sh` | `logs` |
+| `DEPLOY_TIMEOUT_SECS` | `common.sh` | `30` |
+| `DEPLOY_LOG_TAIL_LINES` | `common.sh` | `120` |
 
 ## 12. 디렉토리 구조
 ```
@@ -197,3 +202,4 @@ paas-webapp/
 - 앱 생성 계약(`appname`, `repoUrl`, `branch`)을 유지한다.
 - UI 변경 시 `portal/public/index.html`과 `portal/public/app.js`를 함께 수정한다.
 - 컨테이너 실행 변경 시 `scripts/*`, `scripts/generate-compose.js`, `docker-compose.yml`을 함께 검토한다.
+- 새로운 경로 상수 추가 시 `.env.example`에 기재하지 않는다. 코드(11.2 표)에서 기본값을 선언하고, 동일한 변수명을 `common.sh` / `generate-compose.js` / `server.js` 중 해당 계층에서 통일한다.

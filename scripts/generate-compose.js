@@ -15,16 +15,22 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// --- 환경변수 ---
-const PAAS_ROOT = process.env.PAAS_ROOT || '/paas';
-const PAAS_HOST_ROOT = process.env.PAAS_HOST_ROOT || PAAS_ROOT;
-const PAAS_APPS_DIR = process.env.PAAS_APPS_DIR || `${PAAS_ROOT}/apps`;
-const PAAS_DOMAIN = process.env.PAAS_DOMAIN || 'my.domain.com';
-const APP_NETWORK = process.env.APP_NETWORK || 'paas-app';
-const APP_CONTAINER_PREFIX = process.env.APP_CONTAINER_PREFIX || 'paas-app';
-const DEFAULT_MEM_LIMIT = process.env.DEFAULT_MEM_LIMIT || '256m';
-const DEFAULT_CPU_LIMIT = process.env.DEFAULT_CPU_LIMIT || '0.5';
+// --- 환경변수 (common.sh / .env 와 동일한 이름) ---
+const PAAS_ROOT             = process.env.PAAS_ROOT             || '/paas';
+const PAAS_HOST_ROOT        = process.env.PAAS_HOST_ROOT        || PAAS_ROOT;
+const PAAS_APPS_DIR         = process.env.PAAS_APPS_DIR         || `${PAAS_ROOT}/apps`;
+const PAAS_DOMAIN           = process.env.PAAS_DOMAIN           || 'my.domain.com';
+const APP_NETWORK           = process.env.APP_NETWORK           || 'paas-app';
+const APP_CONTAINER_PREFIX  = process.env.APP_CONTAINER_PREFIX  || 'paas-app';
+const APP_SOURCE_SUBDIR     = process.env.APP_SOURCE_SUBDIR     || 'app';
+const APP_DATA_SUBDIR       = process.env.APP_DATA_SUBDIR       || 'data';
+const APP_COMPOSE_FILE      = process.env.APP_COMPOSE_FILE      || 'docker-compose.yml';
+const DEFAULT_MEM_LIMIT     = process.env.DEFAULT_MEM_LIMIT     || '256m';
+const DEFAULT_CPU_LIMIT     = process.env.DEFAULT_CPU_LIMIT     || '0.5';
 const DEFAULT_RESTART_POLICY = process.env.DEFAULT_RESTART_POLICY || 'unless-stopped';
+
+// --- 내부 규약 파일명 ---
+const PAAS_DOCKERFILE_NAME = '.paas.Dockerfile';
 
 const IS_DEV = process.env.RUN_MODE === 'development';
 
@@ -61,11 +67,11 @@ function buildCompose({ userid, appname, runtime, appDir }) {
   const containerName = `${APP_CONTAINER_PREFIX}-${userid}-${appname}`;
   const domain = `${userid}-${appname}.${PAAS_DOMAIN}`;
 
-  const hostAppDir = normalizeSlash(toHostPath(path.join(appDir, 'app')));
-  const hostDataDir = normalizeSlash(toHostPath(path.join(appDir, 'data')));
+  const hostAppDir = normalizeSlash(toHostPath(path.join(appDir, APP_SOURCE_SUBDIR)));
+  const hostDataDir = normalizeSlash(toHostPath(path.join(appDir, APP_DATA_SUBDIR)));
 
-  const hasUserDockerfile = fs.existsSync(path.join(appDir, 'app', 'Dockerfile'));
-  const dockerfileRef = hasUserDockerfile ? 'Dockerfile' : '.paas.Dockerfile';
+  const hasUserDockerfile = fs.existsSync(path.join(appDir, APP_SOURCE_SUBDIR, 'Dockerfile'));
+  const dockerfileRef = hasUserDockerfile ? 'Dockerfile' : PAAS_DOCKERFILE_NAME;
 
   const portsLines = IS_DEV
     ? ['    ports:', `      - "0.0.0.0:${resolveHostPort(userid, appname)}:${runtime.port}"`]
@@ -89,7 +95,7 @@ function buildCompose({ userid, appname, runtime, appDir }) {
     `    mem_limit: ${JSON.stringify(DEFAULT_MEM_LIMIT)}`,
     `    cpus: ${DEFAULT_CPU_LIMIT}`,
     '    networks:',
-    '      - paas-app',
+    `      - ${APP_NETWORK}`,
     '    labels:',
     `      - ${JSON.stringify('paas.type=user-app')}`,
     `      - ${JSON.stringify(`paas.userid=${userid}`)}`,
@@ -102,7 +108,7 @@ function buildCompose({ userid, appname, runtime, appDir }) {
     '        max-file: "3"',
     '',
     'networks:',
-    '  paas-app:',
+    `  ${APP_NETWORK}:`,
     '    external: true',
     `    name: ${JSON.stringify(APP_NETWORK)}`,
     '',
@@ -131,7 +137,7 @@ try {
 }
 
 const appDir = path.resolve(PAAS_APPS_DIR, userid, appname);
-const composePath = path.join(appDir, 'docker-compose.yml');
+const composePath = path.join(appDir, APP_COMPOSE_FILE);
 
 try {
   const content = buildCompose({ userid, appname, runtime, appDir });

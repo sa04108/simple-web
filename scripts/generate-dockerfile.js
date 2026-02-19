@@ -12,6 +12,10 @@
 const fs = require('fs');
 const path = require('path');
 
+// --- 내부 규약 파일명 ---
+const PAAS_DOCKERFILE_NAME   = '.paas.Dockerfile';
+const PAAS_DOCKERIGNORE_NAME = '.paas.dockerignore';
+
 function buildDockerfile(runtime) {
   const {
     nodeVersion = '22',
@@ -95,8 +99,8 @@ function run(runtimeJson, appDir) {
     throw new Error('runtimeJson 파싱 실패: ' + e.message);
   }
 
-  const dockerfilePath = path.join(resolvedDir, '.paas.Dockerfile');
-  const dockerignorePath = path.join(resolvedDir, '.paas.dockerignore');
+  const dockerfilePath = path.join(resolvedDir, PAAS_DOCKERFILE_NAME);
+  const dockerignorePath = path.join(resolvedDir, PAAS_DOCKERIGNORE_NAME);
 
   fs.writeFileSync(dockerfilePath, buildDockerfile(runtime));
   fs.writeFileSync(dockerignorePath, DOCKERIGNORE_CONTENT);

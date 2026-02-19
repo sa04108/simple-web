@@ -5,22 +5,22 @@ services:
       dockerfile_inline: |
         FROM node:22-alpine
         RUN apk add --no-cache bash git docker-cli docker-cli-compose docker-cli-buildx
-        WORKDIR /paas/portal
+        WORKDIR ${PAAS_ROOT:-/paas}/portal
     image: paas-portal:local
     container_name: paas-portal
-    working_dir: /paas/portal
+    working_dir: ${PAAS_ROOT:-/paas}/portal
     # If .env is missing, copy .env.example to bootstrap local runtime config.
     # start/dev is selected by RUN_MODE (development -> dev, otherwise start).
-    command: sh -c "if [ ! -f /paas/.env ] && [ -f /paas/.env.example ]; then cp /paas/.env.example /paas/.env; fi; npm ci && if [ \"$$RUN_MODE\" = \"development\" ]; then npm run dev; else npm run start; fi"
-    restart: unless-stopped
+    command: sh -c "if [ ! -f ${PAAS_ROOT:-/paas}/.env ] && [ -f ${PAAS_ROOT:-/paas}/.env.example ]; then cp ${PAAS_ROOT:-/paas}/.env.example ${PAAS_ROOT:-/paas}/.env; fi; npm ci && if [ \"$$RUN_MODE\" = \"development\" ]; then npm run dev; else npm run start; fi"
+    restart: ${DEFAULT_RESTART_POLICY:-unless-stopped}
     init: true
     ports:
-      - "3000:3000"
+      - "${PORTAL_PORT:-3000}:${PORTAL_PORT:-3000}"
     environment:
       - PAAS_HOST_ROOT=${PWD}
     volumes:
-      - ./:/paas
-      - portal_node_modules:/paas/portal/node_modules
+      - "./:${PAAS_ROOT:-/paas}"
+      - "portal_node_modules:${PAAS_ROOT:-/paas}/portal/node_modules"
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - proxy

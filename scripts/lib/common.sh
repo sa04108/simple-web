@@ -6,10 +6,6 @@ SCRIPTS_DIR="$(cd "${LIB_DIR}/.." && pwd)"
 PAAS_ROOT_DEFAULT="$(cd "${SCRIPTS_DIR}/.." && pwd)"
 ENV_FILE="${PAAS_ENV_FILE:-${PAAS_ROOT_DEFAULT}/.env}"
 
-if [[ -z "${PAAS_ENV_FILE:-}" && -f "/paas/.env" ]]; then
-  ENV_FILE="/paas/.env"
-fi
-
 if [[ -f "${ENV_FILE}" ]]; then
   set -a
   # shellcheck source=/dev/null
@@ -32,9 +28,9 @@ DEFAULT_RESTART_POLICY="${DEFAULT_RESTART_POLICY:-unless-stopped}"
 DEPLOY_TIMEOUT_SECS="${DEPLOY_TIMEOUT_SECS:-30}"
 DEPLOY_LOG_TAIL_LINES="${DEPLOY_LOG_TAIL_LINES:-120}"
 
-DETECT_RUNTIME_TOOL="${PAAS_ROOT}/scripts/detect-runtime.js"
-GENERATE_DOCKERFILE_TOOL="${PAAS_ROOT}/scripts/generate-dockerfile.js"
-GENERATE_COMPOSE_TOOL="${PAAS_ROOT}/scripts/generate-compose.js"
+DETECT_RUNTIME_TOOL="${SCRIPTS_DIR}/detect-runtime.js"
+GENERATE_DOCKERFILE_TOOL="${SCRIPTS_DIR}/generate-dockerfile.js"
+GENERATE_COMPOSE_TOOL="${SCRIPTS_DIR}/generate-compose.js"
 
 # 컨테이너 경로(/paas/...)를 호스트 경로로 변환
 # PAAS_HOST_ROOT가 설정되어 있으면 PAAS_ROOT 접두사를 PAAS_HOST_ROOT로 치환
