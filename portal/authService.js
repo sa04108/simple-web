@@ -595,5 +595,7 @@ function createAuthService(options) {
 }
 
 module.exports = {
-  createAuthService
+  createAuthService,
+  ROLE_ADMIN,
+  ROLE_USER,
 };

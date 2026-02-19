@@ -22,7 +22,7 @@ const readline = require("node:readline");
 
 const express = require("express");
 const dotenv = require("dotenv");
-const { createAuthService } = require("./authService");
+const { createAuthService, ROLE_ADMIN } = require("./authService");
 
 const execFileAsync = promisify(execFile);
 const repoRoot = path.resolve(__dirname, "..");
@@ -539,6 +539,12 @@ async function resolveAppRequestContext(req) {
   const userid = String(req.params?.userid || "").trim();
   const appname = String(req.params?.appname || "").trim();
   validateAppParams(userid, appname);
+
+  const user = req.auth?.user;
+  if (user?.role !== ROLE_ADMIN && user?.username !== userid) {
+    throw new AppError(403, "Forbidden");
+  }
+
   const appDir = await ensureAppExists(userid, appname);
   return { userid, appname, appDir };
 }
@@ -597,7 +603,6 @@ authService.attachRoutes(app);
 app.use(
   "/apps",
   authService.requireSessionAuth,
-  authService.requirePaasAdmin,
   authService.requirePasswordUpdated
 );
 app.use(
@@ -648,12 +653,16 @@ app.post("/apps", async (req, res, next) => {
   }
 });
 
-app.get("/apps", async (_req, res, next) => {
+app.get("/apps", async (req, res, next) => {
   try {
     const fsApps = await listFilesystemApps();
+    const user = req.auth?.user;
+    const visibleApps = user?.role === ROLE_ADMIN
+      ? fsApps
+      : fsApps.filter((item) => item.userid === user?.username);
     const dockerStatuses = await listDockerStatuses();
     const appDetails = await Promise.all(
-      fsApps.map((appItem) => buildAppInfo(appItem.userid, appItem.appname, dockerStatuses))
+      visibleApps.map((appItem) => buildAppInfo(appItem.userid, appItem.appname, dockerStatuses))
     );
 
     const apps = appDetails
