@@ -825,17 +825,25 @@ app.post("/apps/:userid/:appname/exec", async (req, res, next) => {
       throw new AppError(400, "command too long (max 2048 chars)");
     }
 
+    // Optional working directory. docker exec --workdir is used instead of shell-level
+    // `cd` tricks — Docker sets the process's cwd directly, which is simpler and reliable.
+    const cwd = String(req.body?.cwd || "").trim();
+
     const containerName = await readContainerName(appDir);
     if (!containerName) {
       throw new AppError(404, "Container not found for this app");
     }
+
+    const shellArgs = cwd
+      ? ["exec", "--workdir", cwd, containerName, "sh", "-c", command]
+      : ["exec", containerName, "sh", "-c", command];
 
     let stdout = "";
     let stderr = "";
     try {
       const result = await execFileAsync(
         "docker",
-        ["exec", containerName, "sh", "-c", command],
+        shellArgs,
         { timeout: 30000, maxBuffer: 1 * 1024 * 1024, windowsHide: true }
       );
       stdout = String(result.stdout || "").trimEnd();
@@ -856,6 +864,55 @@ app.post("/apps/:userid/:appname/exec", async (req, res, next) => {
     }
 
     return sendOk(res, { command, output: stdout, stderr });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// ── Exec: tab-completion ──────────────────────────────────────────────────────
+app.post("/apps/:userid/:appname/exec/complete", async (req, res, next) => {
+  try {
+    const { appDir } = await resolveAppRequestContext(req);
+
+    const partial = String(req.body?.partial ?? "");
+    if (partial.length > 512) {
+      throw new AppError(400, "partial too long (max 512 chars)");
+    }
+
+    const cwd = String(req.body?.cwd || "").trim();
+
+    const containerName = await readContainerName(appDir);
+    if (!containerName) {
+      throw new AppError(404, "Container not found for this app");
+    }
+
+    let completions = [];
+    try {
+      // Use POSIX sh + glob — works on any Unix container (alpine/ash, debian/dash, etc.)
+      // partial is passed as positional $1 to avoid shell injection.
+      // --workdir ensures glob runs relative to the user's current working directory.
+      const execArgs = cwd
+        ? ["exec", "--workdir", cwd, containerName]
+        : ["exec", containerName];
+      const result = await execFileAsync(
+        "docker",
+        [
+          ...execArgs,
+          "sh", "-c",
+          'for f in "$1"*; do [ -e "$f" ] && printf "%s\\n" "$f"; done',
+          "--", partial,
+        ],
+        { timeout: 5000, maxBuffer: 64 * 1024, windowsHide: true }
+      );
+      completions = String(result.stdout || "")
+        .split("\n")
+        .map((s) => s.trimEnd())
+        .filter(Boolean);
+    } catch {
+      // sh glob exits non-zero in some edge cases — treat as empty list
+    }
+
+    return sendOk(res, { completions });
   } catch (error) {
     return next(error);
   }

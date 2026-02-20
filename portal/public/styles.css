@@ -1508,6 +1508,19 @@ code {
   font-size: 0.9rem;
   flex-shrink: 0;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Current working directory shown before the $ sign */
+.exec-prompt-cwd {
+  color: #5eead4;
+  font-size: 0.8rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .exec-input {
@@ -1529,6 +1542,19 @@ code {
 
 .exec-input:focus {
   transform: none !important;
+}
+
+/* Exec run button — brighter for legibility against the dark terminal background */
+#detail-exec-run-btn {
+  color: #c8e6ff;
+  background: rgba(42, 134, 241, 0.22);
+  border-color: rgba(42, 134, 241, 0.48);
+}
+
+#detail-exec-run-btn:hover {
+  color: #e8f4ff;
+  background: rgba(42, 134, 241, 0.34);
+  border-color: rgba(42, 134, 241, 0.62);
 }
 
 /* ── Settings (env vars) ── */

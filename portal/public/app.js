@@ -86,6 +86,7 @@ const el = {
   detailExecOutput: document.getElementById("detail-exec-output"),
   detailExecInput: document.getElementById("detail-exec-input"),
   detailExecRunBtn: document.getElementById("detail-exec-run-btn"),
+  detailExecPromptCwd: document.getElementById("detail-exec-prompt-cwd"),
   // Settings
   detailEnvTextarea: document.getElementById("detail-env-textarea"),
   detailEnvError: document.getElementById("detail-env-error"),
@@ -320,6 +321,8 @@ function switchDetailTab(tabName) {
 
 async function navigateToApp(userid, appname) {
   state.selectedApp = { userid, appname };
+  execCwd = "";
+  updateExecPrompt();
   el.appDetailAppname.textContent = `${userid} / ${appname}`;
   switchDetailTab(DEFAULT_DETAIL_TAB);
   switchView("app-detail");
@@ -850,6 +853,134 @@ async function loadDetailLogs() {
 
 // ── 앱 관리 > Exec ────────────────────────────────────────────────────────────
 
+// Command history — supports keyboard navigation (↑ back, ↓ forward)
+const execHistory = (() => {
+  const MAX = 200;
+  const stack = [];
+  let cursor = -1; // -1 = not navigating; 0 = most-recent entry
+  let draft = "";  // preserves in-progress text while navigating
+
+  return {
+    push(cmd) {
+      if (stack.at(-1) !== cmd) { // suppress consecutive duplicates
+        stack.push(cmd);
+        if (stack.length > MAX) stack.shift();
+      }
+      cursor = -1;
+      draft = "";
+    },
+    back(current) {
+      if (!stack.length) return current;
+      if (cursor === -1) draft = current;
+      cursor = Math.min(cursor + 1, stack.length - 1);
+      return stack[stack.length - 1 - cursor];
+    },
+    forward() {
+      if (cursor === -1) return null;
+      cursor -= 1;
+      return cursor === -1 ? draft : stack[stack.length - 1 - cursor];
+    },
+  };
+})();
+
+// Tracks the current working directory inside the container.
+// Reset to "" on app switch; updated by `cd` commands and on exec tab open.
+let execCwd = "";
+
+// Tab-completion — backed by server-side compgen inside the container
+let tabState = { base: "", partial: "", matches: [], index: -1, loading: false };
+let tabCompletionGen = 0; // bumped on reset to discard stale in-flight responses
+
+// Splits "cat /etc/pa" → { base: "cat ", partial: "/etc/pa" }
+function splitInputToken(input) {
+  const lastSpace = input.lastIndexOf(" ");
+  return lastSpace === -1
+    ? { base: "", partial: input }
+    : { base: input.slice(0, lastSpace + 1), partial: input.slice(lastSpace + 1) };
+}
+
+async function handleTabCompletion() {
+  if (tabState.loading) return;
+
+  const fullInput = el.detailExecInput.value;
+
+  // Already cycling through a fetched result set — just advance
+  if (
+    tabState.matches.length > 0 &&
+    tabState.index !== -1 &&
+    fullInput === tabState.base + tabState.matches[tabState.index]
+  ) {
+    tabState.index = (tabState.index + 1) % tabState.matches.length;
+    const completed = tabState.base + tabState.matches[tabState.index];
+    el.detailExecInput.value = completed;
+    el.detailExecInput.setSelectionRange(completed.length, completed.length);
+    return;
+  }
+
+  if (!state.selectedApp) return;
+  const { base, partial } = splitInputToken(fullInput);
+  const { userid, appname } = state.selectedApp;
+
+  const gen = ++tabCompletionGen;
+  tabState = { base, partial, matches: [], index: -1, loading: true };
+
+  try {
+    const data = await apiFetch(`/apps/${userid}/${appname}/exec/complete`, {
+      method: "POST",
+      body: JSON.stringify({ partial, cwd: execCwd }),
+    });
+    if (gen !== tabCompletionGen) return; // superseded by a newer request or reset
+    tabState.matches = data.completions;
+  } catch {
+    if (gen !== tabCompletionGen) return;
+  } finally {
+    if (gen === tabCompletionGen) tabState.loading = false;
+  }
+
+  if (!tabState.matches.length) return;
+  tabState.index = 0;
+  const completed = tabState.base + tabState.matches[0];
+  el.detailExecInput.value = completed;
+  el.detailExecInput.setSelectionRange(completed.length, completed.length);
+}
+
+function formatCwdDisplay(cwd) {
+  if (!cwd) return "";
+  const parts = cwd.split("/").filter(Boolean);
+  // Show at most the last two path components to keep the prompt compact
+  return parts.length <= 2 ? cwd : `…/${parts.slice(-2).join("/")}`;
+}
+
+function updateExecPrompt() {
+  el.detailExecPromptCwd.textContent = formatCwdDisplay(execCwd);
+}
+
+// Detects `cd [args]` as a shell built-in that must be tracked client-side.
+// Returns the args string (may be empty for bare `cd`) or null if not a cd command.
+function parseCdArgs(command) {
+  const m = command.match(/^cd(?:\s+(.*\S))?$/);
+  return m ? (m[1] ?? "") : null;
+}
+
+// Silently fetches the container's initial working directory to populate the prompt.
+async function initExecCwd() {
+  if (!state.selectedApp || execCwd !== "") return;
+  const { userid, appname } = state.selectedApp;
+  try {
+    const data = await apiFetch(`/apps/${userid}/${appname}/exec`, {
+      method: "POST",
+      body: JSON.stringify({ command: "pwd", cwd: "" }),
+    });
+    const cwd = data.output?.trim();
+    if (cwd?.startsWith("/")) {
+      execCwd = cwd;
+      updateExecPrompt();
+    }
+  } catch {
+    // Silent fail — prompt stays at bare "$"
+  }
+}
+
 function appendExecLine(text, className = "") {
   const line = document.createElement("span");
   if (className) line.className = className;
@@ -863,20 +994,50 @@ async function runExecCommand() {
   const command = el.detailExecInput.value.trim();
   if (!command) return;
 
-  const { userid, appname } = state.selectedApp;
+  execHistory.push(command);
   el.detailExecInput.value = "";
+
+  // Built-in: clear — handle client-side, no round-trip needed
+  if (command === "clear") {
+    el.detailExecOutput.innerHTML = "";
+    return;
+  }
+
+  const { userid, appname } = state.selectedApp;
   el.detailExecRunBtn.disabled = true;
   el.detailExecInput.disabled = true;
-
   appendExecLine(`$ ${command}`, "exec-cmd");
+
+  // cd is a shell built-in — each exec runs in a fresh subshell, so cd has no
+  // persistent effect. We detect it, append `&& pwd` to resolve the new absolute
+  // path, then carry that path forward as the cwd prefix for all future commands.
+  const cdArgs = parseCdArgs(command);
+  const isCd = cdArgs !== null;
+  const effectiveCommand = isCd ? `${command} && pwd` : command;
 
   try {
     const data = await apiFetch(`/apps/${userid}/${appname}/exec`, {
       method: "POST",
-      body: JSON.stringify({ command }),
+      body: JSON.stringify({ command: effectiveCommand, cwd: execCwd }),
     });
-    if (data.output) appendExecLine(data.output, "exec-stdout");
-    if (data.stderr) appendExecLine(data.stderr, "exec-stderr");
+
+    if (isCd) {
+      if (data.output) {
+        const lines = data.output.trimEnd().split("\n");
+        const newCwd = lines.at(-1);
+        if (newCwd?.startsWith("/")) {
+          execCwd = newCwd;
+          updateExecPrompt();
+        }
+        // Any lines before the final `pwd` output are cd's own messages (rare but possible)
+        const extraOutput = lines.slice(0, -1).join("\n").trimEnd();
+        if (extraOutput) appendExecLine(extraOutput, "exec-stdout");
+      }
+      if (data.stderr) appendExecLine(data.stderr, "exec-stderr");
+    } else {
+      if (data.output) appendExecLine(data.output, "exec-stdout");
+      if (data.stderr) appendExecLine(data.stderr, "exec-stderr");
+    }
   } catch (error) {
     appendExecLine(normalizeErrorMessage(error, "Exec 요청 중 오류가 발생했습니다."), "exec-stderr");
   } finally {
@@ -1017,6 +1178,9 @@ el.detailTabBtns.forEach((btn) => {
     if (tab === "logs" && state.selectedApp) {
       loadDetailLogs().catch(handleRequestError);
     }
+    if (tab === "exec" && state.selectedApp) {
+      initExecCwd().catch(() => {});
+    }
     if (tab === "settings" && state.selectedApp) {
       loadDetailEnv().catch(handleRequestError);
     }
@@ -1035,21 +1199,34 @@ el.detailRefreshLogsBtn.addEventListener("click", async () => {
 
 // Exec
 el.detailExecRunBtn.addEventListener("click", async () => {
-  try {
-    await runExecCommand();
-  } catch (error) {
-    await handleRequestError(error);
-  }
+  try { await runExecCommand(); } catch (error) { await handleRequestError(error); }
 });
 
 el.detailExecInput.addEventListener("keydown", async (event) => {
-  if (event.key === "Enter") {
-    event.preventDefault();
-    try {
-      await runExecCommand();
-    } catch (error) {
-      await handleRequestError(error);
+  if (event.key !== "Tab") {
+    tabCompletionGen++; // invalidate any in-flight completion request
+    tabState = { base: "", partial: "", matches: [], index: -1, loading: false };
+  }
+
+  switch (event.key) {
+    case "Enter":
+      event.preventDefault();
+      try { await runExecCommand(); } catch (err) { await handleRequestError(err); }
+      break;
+    case "ArrowUp":
+      event.preventDefault();
+      el.detailExecInput.value = execHistory.back(el.detailExecInput.value);
+      break;
+    case "ArrowDown": {
+      event.preventDefault();
+      const next = execHistory.forward();
+      el.detailExecInput.value = next ?? "";
+      break;
     }
+    case "Tab":
+      event.preventDefault();
+      await handleTabCompletion();
+      break;
   }
 });
 
