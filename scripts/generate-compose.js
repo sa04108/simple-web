@@ -117,6 +117,7 @@ function buildCompose({ userid, appname, appDir }) {
     '    networks:',
     `      - ${APP_NETWORK}`,
     '    labels:',
+    `      - ${JSON.stringify('traefik.enable=true')}`,
     `      - ${JSON.stringify('paas.type=user-app')}`,
     `      - ${JSON.stringify(`paas.userid=${userid}`)}`,
     `      - ${JSON.stringify(`paas.appname=${appname}`)}`,

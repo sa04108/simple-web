@@ -6,4 +6,4 @@ services:
 networks:
   proxy:
     name: ${APP_NETWORK:-paas-app}
-    external: false # dev 환경에서는 network 자동 생성, 편의상 portal도 app과 같은 네트워크로 지정
+    external: false # In dev mode, create the APP_NETWORK automatically.

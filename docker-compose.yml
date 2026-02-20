@@ -1,4 +1,24 @@
 services:
+  traefik:
+    image: traefik:v3.6
+    container_name: paas-proxy
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.constraints=Label(`paas.type`, `user-app`)"
+      - "--providers.docker.defaultRule=Host(`{{ index .Labels \"paas.domain\" }}`)"
+      - "--providers.docker.network=${APP_NETWORK:-paas-app}"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    restart: unless-stopped
+
   portal:
     build:
       context: .
@@ -24,11 +44,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - proxy
-
 networks:
   proxy:
     external: true
-    name: proxy
+    name: ${APP_NETWORK:-paas-app}
 
 volumes:
   portal_node_modules:
