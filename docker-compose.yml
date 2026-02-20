@@ -16,6 +16,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - proxy
+      - paas-app
     restart: unless-stopped
 
   portal:
@@ -47,6 +48,9 @@ networks:
   proxy:
     external: true
     name: proxy
+  paas-app:
+    external: true
+    name: ${APP_NETWORK:-paas-app}
 
 volumes:
   portal_node_modules:
