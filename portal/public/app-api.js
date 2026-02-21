@@ -84,6 +84,9 @@ async function loadApps() {
   const data = await apiFetch("/apps");
   state.apps = data.apps || [];
   renderApps(state.apps);
+  if (data.hasLabelErrors) {
+    setBanner("컨테이너 중 일부의 라벨이 누락되어 대시보드에서 제외되었습니다. 관리자에게 문의하세요.", "error");
+  }
 }
 
 async function loadUsers() {

@@ -164,30 +164,32 @@ function normalizeStatus(statusText) {
 }
 
 // 앱 하나의 완전한 정보 객체를 빌드한다.
-// statusMap(Map)이 제공되면 캐시된 값을 사용하고, 없으면 docker ps로 직접 조회한다.
-async function buildAppInfo(userid, appname, statusMap) {
+// dockerAppItem이 제공되면 파싱된 값을 사용하고, 없으면 파일시스템/docker ps로 직접 조회한다.
+async function buildAppInfo(userid, appname, dockerAppItem = null) {
   const appDir = getAppDir(userid, appname);
-  if (!(await pathExists(appDir))) return null;
+  const metadata = await readAppMeta(appDir); // 디렉토리가 없어도 안전하게 null 반환
 
-  const metadata = await readAppMeta(appDir);
-  const appContainerName = await readContainerName(appDir);
+  let appContainerName = dockerAppItem?.containerName;
+  let rawStatus = dockerAppItem?.rawStatus;
+  let createdAtStr = dockerAppItem?.createdAt;
+  let domainStr = dockerAppItem?.domain;
 
-  const rawStatus =
-    appContainerName && statusMap instanceof Map && statusMap.has(appContainerName)
-      ? statusMap.get(appContainerName)
-      : await getDockerContainerStatus(appDir, appContainerName);
+  if (!dockerAppItem) {
+    appContainerName = await readContainerName(appDir);
+    rawStatus = await getDockerContainerStatus(appDir, appContainerName);
+  }
 
   return {
     userid,
     appname,
-    domain: domainName(userid, appname),
-    containerName: appContainerName,
+    domain: domainStr || domainName(userid, appname),
+    containerName: appContainerName || null,
     status: normalizeStatus(rawStatus),
-    rawStatus,
+    rawStatus: rawStatus || "unknown",
     repoUrl: metadata?.repoUrl || null,
     branch: metadata?.branch || null,
     detectedRuntime: metadata?.detectedRuntime || null,
-    createdAt: metadata?.createdAt || null,
+    createdAt: metadata?.createdAt || createdAtStr || null,
     appDir,
   };
 }
@@ -302,11 +304,11 @@ async function runRunnerScript(scriptName, args) {
       stream: true,
       logTag: safeScriptName,
     });
-    dockerStatusCache.ts = 0; // 실행 후 Docker 상태 캐시를 무효화
+    dockerAppsCache.ts = 0; // 실행 후 Docker 갱신을 위해 캐시 무효화
     console.log(`[portal] ${safeScriptName} completed`);
     return result;
   } catch (error) {
-    dockerStatusCache.ts = 0;
+    dockerAppsCache.ts = 0;
     console.error(`[portal] ${safeScriptName} failed`);
     if (error.code === "ENOENT") {
       throw new AppError(503, "bash command is not available");
@@ -328,10 +330,10 @@ async function runDockerCompose(appDir, args) {
     const result = await runCommand("docker", ["compose", "-f", APP_COMPOSE_FILE, ...args], {
       cwd: appDir,
     });
-    dockerStatusCache.ts = 0;
+    dockerAppsCache.ts = 0; // 실행 후 Docker 상태 캐시를 무효화
     return result;
   } catch (error) {
-    dockerStatusCache.ts = 0;
+    dockerAppsCache.ts = 0;
     if (error.code === "ENOENT") {
       throw new AppError(503, "docker command is not available");
     }
@@ -358,39 +360,57 @@ async function getDockerContainerStatus(appDir, containerName = null) {
   }
 }
 
-// paas.type=user-app 레이블을 가진 모든 컨테이너 상태를 한 번에 조회한다.
+// paas.type=user-app 레이블을 가진 모든 컨테이너 정보를 추출한다.
 // TTL(5초) 이내 재요청은 캐시를 반환하여 docker ps 호출 횟수를 줄인다.
-const dockerStatusCache = { map: new Map(), ts: 0, TTL: 5000 };
+const dockerAppsCache = { data: null, ts: 0, TTL: 5000 };
 
-async function listDockerStatuses() {
+async function listDockerApps() {
   const now = Date.now();
-  if (now - dockerStatusCache.ts < dockerStatusCache.TTL) {
-    return dockerStatusCache.map;
+  if (dockerAppsCache.data && now - dockerAppsCache.ts < dockerAppsCache.TTL) {
+    return dockerAppsCache.data;
   }
 
-  const statusMap = new Map();
+  const result = { apps: [], hasLabelErrors: false };
   try {
     const { stdout } = await runCommand("docker", [
       "ps", "-a",
       "--filter", "label=paas.type=user-app",
-      "--format", "{{.Names}}\t{{.Status}}",
+      "--format", "{{.Label \"paas.userid\"}}\t{{.Label \"paas.appname\"}}\t{{.Names}}\t{{.Status}}\t{{.Label \"paas.domain\"}}\t{{.CreatedAt}}",
     ]);
 
     if (stdout) {
       for (const line of stdout.split(/\r?\n/).filter(Boolean)) {
-        const [name, ...statusParts] = line.split("\t");
-        const status = statusParts.join("\t").trim();
-        if (name) statusMap.set(name.trim(), status || "unknown");
+        const parts = line.split("\t");
+        const uid = parts[0]?.trim();
+        const appn = parts[1]?.trim();
+        const containerName = parts[2]?.trim();
+        const rawStatus = parts[3]?.trim() || "unknown";
+        const domain = parts[4]?.trim() || "";
+        const createdAt = parts[5]?.trim() || "";
+
+        if (!uid || !appn) {
+          result.hasLabelErrors = true;
+          continue;
+        }
+
+        result.apps.push({
+          userid: uid,
+          appname: appn,
+          containerName,
+          rawStatus,
+          domain,
+          createdAt,
+        });
       }
     }
 
-    dockerStatusCache.map = statusMap;
-    dockerStatusCache.ts = now;
+    dockerAppsCache.data = result;
+    dockerAppsCache.ts = now;
   } catch {
-    // docker 데몬이 없거나 오류 시 빈 맵을 반환 (호출자가 개별 조회로 폴백)
+    // docker 데몬 오류 시 빈 데이터 캐싱
   }
 
-  return statusMap;
+  return result;
 }
 
 // ── 환경변수 파일 관리 ────────────────────────────────────────────────────────
@@ -522,8 +542,8 @@ module.exports = {
   runDockerCompose,
   // Docker
   getDockerContainerStatus,
-  listDockerStatuses,
-  dockerStatusCache,
+  listDockerApps,
+  dockerAppsCache,
   // 환경변수
   patchComposeEnvFile,
   readEnvFile,

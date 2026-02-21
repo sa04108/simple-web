@@ -17,12 +17,11 @@ const {
   assertUserId,
   assertAppName,
   pathExists,
-  listFilesystemApps,
   readContainerName,
   buildAppInfo,
   ensureAppExists,
   normalizeStatus,
-  listDockerStatuses,
+  listDockerApps,
   getDockerContainerStatus,
   runRunnerScript,
   runDockerCompose,
@@ -120,13 +119,12 @@ router.post("/", async (req, res, next) => {
 // GET /apps — 현재 로그인 사용자의 앱 목록 조회 (admin 포함 본인 앱만)
 router.get("/", async (req, res, next) => {
   try {
-    const fsApps = await listFilesystemApps();
+    const { apps: dockerApps, hasLabelErrors } = await listDockerApps();
     const user = req.auth?.user;
     // 모든 사용자(admin 포함)는 본인이 생성한 앱만 대시보드에서 조회한다.
-    const visibleApps = fsApps.filter((item) => String(item.userid).toLowerCase() === String(user?.username || "").toLowerCase());
-    const dockerStatuses = await listDockerStatuses();
+    const visibleApps = dockerApps.filter((item) => String(item.userid).toLowerCase() === String(user?.username || "").toLowerCase());
     const appDetails = await Promise.all(
-      visibleApps.map((appItem) => buildAppInfo(appItem.userid, appItem.appname, dockerStatuses))
+      visibleApps.map((appItem) => buildAppInfo(appItem.userid, appItem.appname, appItem))
     );
 
     const apps = appDetails
@@ -138,7 +136,7 @@ router.get("/", async (req, res, next) => {
         return `${a.userid}/${a.appname}`.localeCompare(`${b.userid}/${b.appname}`);
       });
 
-    return sendOk(res, { apps, total: apps.length });
+    return sendOk(res, { apps, total: apps.length, hasLabelErrors });
   } catch (error) {
     return next(error);
   }
