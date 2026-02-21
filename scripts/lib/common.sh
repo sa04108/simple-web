@@ -61,16 +61,16 @@ require_node() {
 
 validate_user_id() {
   local user_id="$1"
-  if [[ ! "${user_id}" =~ ^[a-z][a-z0-9]{2,19}$ ]]; then
-    echo "Invalid userid. Expected /^[a-z][a-z0-9]{2,19}$/" >&2
+  if [[ ! "${user_id}" =~ ^[A-Za-z0-9]{3,20}$ ]]; then
+    echo "사용자 ID는 영문 대소문자 및 숫자 조합으로 3자 이상 20자 이하여야 합니다." >&2
     exit 1
   fi
 }
 
 validate_app_name() {
   local app_name="$1"
-  if [[ ! "${app_name}" =~ ^[a-z][a-z0-9-]{2,29}$ ]]; then
-    echo "Invalid appname. Expected /^[a-z][a-z0-9-]{2,29}$/" >&2
+  if [[ ! "${app_name}" =~ ^[A-Za-z0-9-]{3,30}$ ]]; then
+    echo "앱 이름은 영문 대소문자, 숫자, 하이픈(-) 조합으로 3자 이상 30자 이하여야 합니다." >&2
     exit 1
   fi
 }

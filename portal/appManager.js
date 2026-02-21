@@ -48,13 +48,13 @@ function domainName(userid, appname) {
 
 function assertUserId(userid) {
   if (!USER_ID_REGEX.test(userid)) {
-    throw new AppError(400, "Invalid userid. Expected /^[a-z][a-z0-9]{2,19}$/");
+    throw new AppError(400, "사용자 ID는 영문 대소문자 및 숫자 조합으로 3자 이상 20자 이하여야 합니다.");
   }
 }
 
 function assertAppName(appname) {
   if (!APP_NAME_REGEX.test(appname)) {
-    throw new AppError(400, "Invalid appname. Expected /^[a-z][a-z0-9-]{2,29}$/");
+    throw new AppError(400, "앱 이름은 영문 대소문자, 숫자, 하이픈(-) 조합으로 3자 이상 30자 이하여야 합니다.");
   }
 }
 
