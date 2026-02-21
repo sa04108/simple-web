@@ -27,6 +27,7 @@ import {
   setDeleteUserError,
   setPromoteAdminError,
   setSettingsError,
+  showToast,
   syncDomainPreview,
 } from "./app-utils.js";
 import {
@@ -226,7 +227,7 @@ el.passwordForm.addEventListener("submit", async (event) => {
     updateAuthUi();
     closeSettingsModal();
     await refreshDashboardData();
-    setBanner("비밀번호 변경이 완료되었습니다.", "success");
+    showToast("비밀번호 변경이 완료되었습니다.", "success");
   } catch (error) {
     await handleSettingsModalError(error);
   }
@@ -315,7 +316,7 @@ el.createUserForm.addEventListener("submit", async (event) => {
     });
     closeCreateUserModal({ resetForm: true });
     await loadUsers();
-    setBanner(`사용자 생성 완료: ${data.user.username}`, "success");
+    showToast(`사용자 생성 완료: ${data.user.username}`, "success");
   } catch (error) {
     if (error?.status === 401 || error?.status === 403) {
       await handleRequestError(error);
@@ -362,7 +363,7 @@ el.deleteUserForm.addEventListener("submit", async (event) => {
     });
     closeDeleteUserModal({ resetForm: true });
     await loadUsers();
-    setBanner(`사용자 제거 완료: ${targetUser.username}`, "success");
+    showToast(`사용자 제거 완료: ${targetUser.username}`, "success");
   } catch (error) {
     const message = normalizeErrorMessage(error, "사용자 제거 중 오류가 발생했습니다.");
     const isCurrentPasswordMismatch =
@@ -404,7 +405,7 @@ el.submitPromoteAdminBtn.addEventListener("click", async () => {
     const data = await apiFetch(`/users/${targetUser.id}/role`, { method: "PATCH" });
     closePromoteAdminModal();
     await loadUsers();
-    setBanner(`${data.user.username} 사용자가 Admin으로 승격되었습니다.`, "success");
+    showToast(`${data.user.username} 사용자가 Admin으로 승격되었습니다.`, "success");
   } catch (error) {
     if (error?.status === 401 || error?.status === 403) {
       await handleRequestError(error);

@@ -20,6 +20,7 @@ import {
   setBanner,
   setEnvError,
   setSettingsError,
+  showToast,
   syncDomainPreview,
   validateCreateForm,
 } from "./app-utils.js";
@@ -194,7 +195,7 @@ async function performAction(target) {
     const keepData    = el.keepDataInput?.checked ?? false;
     const shouldDelete = window.confirm(`${appLabel} 앱을 삭제합니다.`);
     if (!shouldDelete) return;
-    setBanner(`삭제 요청 중: ${appLabel}`, "info");
+    showToast(`삭제 요청 중: ${appLabel}`, "info");
     await apiFetch(`/apps/${userid}/${appname}`, {
       method: "DELETE",
       body: JSON.stringify({ keepData }),
@@ -203,7 +204,7 @@ async function performAction(target) {
       state.selectedApp = null;
       switchView("dashboard");
     }
-    setBanner(`삭제 완료: ${appLabel}`, "success");
+    showToast(`삭제 완료: ${appLabel}`, "success");
     await loadApps();
     return;
   }
@@ -212,12 +213,12 @@ async function performAction(target) {
   if (!validActions.includes(action)) return;
 
   if (action === "deploy") {
-    setBanner(`${appLabel} 재배포 중 (git pull + 이미지 재빌드, 시간이 걸릴 수 있습니다)...`, "info");
+    showToast(`${appLabel} 재배포 중 (git pull + 이미지 재빌드, 시간이 걸릴 수 있습니다)...`, "info", 8000);
   } else {
-    setBanner(`${action} 요청 중: ${appLabel}`, "info");
+    showToast(`${action} 요청 중: ${appLabel}`, "info");
   }
   await apiFetch(`/apps/${userid}/${appname}/${action}`, { method: "POST" });
-  setBanner(`${action} 완료: ${appLabel}`, "success");
+  showToast(`${action} 완료: ${appLabel}`, "success");
   await loadApps();
 }
 
@@ -258,9 +259,9 @@ async function saveDetailEnv() {
       body: JSON.stringify({ env: envContent }),
     });
     if (result.restartError) {
-      setBanner(`환경변수 저장 완료, 컨테이너 재시작 실패: ${result.restartError}`, "error");
+      showToast(`환경변수 저장 완료, 컨테이너 재시작 실패: ${result.restartError}`, "error", 6000);
     } else {
-      setBanner(`환경변수 저장 및 재시작 완료: ${userid}/${appname}`, "success");
+      showToast(`환경변수 저장 및 재시작 완료: ${userid}/${appname}`, "success");
     }
     await loadApps();
   } catch (error) {
@@ -291,13 +292,21 @@ async function handleCreate(event) {
     throw new Error("appname, repo URL을 입력하세요.");
   }
 
-  setBanner("앱 생성 중 (repo clone 및 빌드 포함, 시간이 걸릴 수 있습니다)...", "info");
-  const data = await apiFetch("/apps", { method: "POST", body: JSON.stringify(body) });
-  setBanner(`앱 생성 완료: ${data.app.domain}`, "success");
-  el.createForm.reset();
-  el.repoBranchInput.value = "main";
-  syncDomainPreview();
-  await loadApps();
+  const submitBtn = el.createSubmitBtn;
+  submitBtn.disabled = true;
+  submitBtn.textContent = "생성 중...";
+  try {
+    showToast("앱 생성 중 (repo clone 및 빌드 포함, 시간이 걸릴 수 있습니다)...", "info", 8000);
+    const data = await apiFetch("/apps", { method: "POST", body: JSON.stringify(body) });
+    showToast(`앱 생성 완료: ${data.app.domain}`, "success");
+    el.createForm.reset();
+    el.repoBranchInput.value = "main";
+    syncDomainPreview();
+    await loadApps();
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Create App";
+  }
 }
 
 export {

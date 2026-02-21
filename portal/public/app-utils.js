@@ -18,6 +18,32 @@ import {
   state,
 } from "./app-state.js";
 
+// ── Toast 알림 ───────────────────────────────────────────────────────────────
+
+// 우하단에 자동 소멸하는 토스트를 표시한다.
+// durationMs 이후 페이드 아웃되며, 클릭 시 즉시 닫힌다.
+function showToast(message, type = "info", durationMs = 4000) {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  const dismiss = () => {
+    if (!toast.isConnected) return;
+    toast.classList.add("dismissing");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  };
+
+  const timer = window.setTimeout(dismiss, durationMs);
+  toast.addEventListener("click", () => {
+    window.clearTimeout(timer);
+    dismiss();
+  });
+}
+
 // ── 배너 · 인라인 에러 ───────────────────────────────────────────────────────
 
 function setBanner(message, type = "info") {
@@ -246,6 +272,7 @@ export {
   setEnvError,
   setPromoteAdminError,
   setSettingsError,
+  showToast,
   statusClass,
   syncDomainPreview,
   validateCreateForm,

@@ -75,6 +75,7 @@ export const el = {
 
   // 앱 생성 폼
   createForm:       document.getElementById("create-form"),
+  createSubmitBtn:  document.getElementById("create-submit-btn"),
   appnameInput:     document.getElementById("appname-input"),
   repoUrlInput:     document.getElementById("repo-url-input"),
   repoBranchInput:  document.getElementById("repo-branch-input"),

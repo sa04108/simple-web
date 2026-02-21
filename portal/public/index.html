@@ -153,7 +153,7 @@
                                 <code id="domain-preview" class="preview-code">owner-appname.my.domain.com</code>
                             </div>
 
-                            <button class="primary-btn" type="submit">Create App</button>
+                            <button id="create-submit-btn" class="primary-btn" type="submit">Create App</button>
                         </form>
                     </article>
                 </section>
@@ -419,6 +419,9 @@
                 </div>
             </section>
         </div>
+
+        <!-- Toast 알림 컨테이너 -->
+        <div id="toast-container" class="toast-container" aria-live="polite" aria-atomic="false"></div>
 
         <!-- ES modules: app.js is the single entrypoint -->
         <script type="module" src="./app.js?v=20260220-03"></script>
