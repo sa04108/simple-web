@@ -93,7 +93,7 @@ router.post("/", async (req, res, next) => {
     const userid = resolveRequestUserId(req);
     const { appname, repoUrl, branch } = validateCreateBody(req.body);
 
-    const existingApps = await listFilesystemApps();
+    const { apps: existingApps } = await listDockerApps();
     if (existingApps.length >= config.MAX_TOTAL_APPS) {
       throw new AppError(429, `MAX_TOTAL_APPS exceeded (${config.MAX_TOTAL_APPS})`);
     }
