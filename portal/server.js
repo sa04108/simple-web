@@ -14,9 +14,8 @@
 //     routes/users.js — /users 라우트 핸들러 팩토리
 // =============================================================================
 "use strict";
-
 const path = require("node:path");
-
+const fs = require("node:fs");
 const express = require("express");
 const { createAuthService } = require("./authService");
 const { AppError, sendOk, sendError } = require("./utils");
@@ -78,15 +77,23 @@ function canAccessDashboardUi(req) {
   return Boolean(authService.resolveSessionAuth(req));
 }
 
+const APP_VERSION = Date.now().toString();
+
+function serveHtmlWithVersion(res, filePath) {
+  const html = fs.readFileSync(filePath, "utf-8").replace(/__APP_VERSION__/g, APP_VERSION);
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
+}
+
 // / 와 /index.html 은 동일한 대시보드 페이지를 제공한다.
 app.get(["/", "/index.html"], (req, res) => {
   if (!canAccessDashboardUi(req)) return res.redirect("/auth");
-  return res.sendFile(dashboardPagePath);
+  return serveHtmlWithVersion(res, dashboardPagePath);
 });
 
 app.get("/auth", (req, res) => {
   if (canAccessDashboardUi(req)) return res.redirect("/");
-  return res.sendFile(authPagePath);
+  return serveHtmlWithVersion(res, authPagePath);
 });
 
 // 정적 파일 서빙 (index: false 로 자동 index.html 서빙 비활성화 — 위 라우트로 처리)
