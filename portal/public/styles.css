@@ -1121,6 +1121,8 @@ code {
 
 .modal-card {
   width: min(460px, 100%);
+  min-width: 0;
+  max-width: 100%;
 }
 
 .job-list-modal-card {
