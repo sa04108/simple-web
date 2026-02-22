@@ -8,9 +8,9 @@
 
 // ── 기본 API 통신 ─────────────────────────────────────────────────────────────
 
-import { AUTO_REFRESH_MS, el, state } from "./app-state.js";
-import { renderApps, renderUsers, renderAdminApps } from "./app-render.js";
-import { navigateToApp, switchView, updateAuthUi, renderJobIndicator } from "./app-ui.js";
+import { AUTO_REFRESH_MS, el, state } from "./app-state.js?v=__APP_VERSION__";
+import { renderApps, renderUsers, renderAdminApps } from "./app-render.js?v=__APP_VERSION__";
+import { navigateToApp, switchView, updateAuthUi, renderJobIndicator } from "./app-ui.js?v=__APP_VERSION__";
 import {
   canManageApps,
   canManageUsers,
@@ -24,7 +24,7 @@ import {
   showToast,
   syncDomainPreview,
   validateCreateForm,
-} from "./app-utils.js";
+} from "./app-utils.js?v=__APP_VERSION__";
 
 // 모든 API 호출의 기반 함수. 응답이 ok: false이거나 HTTP 오류면 예외를 던진다.
 async function apiFetch(path, options = {}) {

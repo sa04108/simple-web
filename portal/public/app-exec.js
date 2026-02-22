@@ -14,8 +14,8 @@
 
 // IIFE로 히스토리 상태를 캡슐화한다.
 // 외부에서 직접 stack/cursor에 접근하지 못하게 하여 오염을 방지한다.
-import { el, state } from "./app-state.js";
-import { normalizeErrorMessage } from "./app-utils.js";
+import { el, state } from "./app-state.js?v=__APP_VERSION__";
+import { normalizeErrorMessage } from "./app-utils.js?v=__APP_VERSION__";
 
 let execApiFetch = null;
 

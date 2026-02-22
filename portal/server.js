@@ -96,6 +96,23 @@ app.get("/auth", (req, res) => {
   return serveHtmlWithVersion(res, authPagePath);
 });
 
+// 클라이언트 JS 파일 모듈 URL 캐시 버스팅을 위해 __APP_VERSION__ 치환
+app.get("/*.js", (req, res, next) => {
+  const filePath = path.join(publicDir, req.path);
+  if (!fs.existsSync(filePath)) {
+    return next();
+  }
+  try {
+    const jsContent = fs.readFileSync(filePath, "utf-8");
+    const versionedJs = jsContent.replace(/__APP_VERSION__/g, APP_VERSION);
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=31536000"); // 1년 캐싱 허용 (URL에 버전이 있으므로 안전함)
+    return res.send(versionedJs);
+  } catch (error) {
+    return next(error);
+  }
+});
+
 // 정적 파일 서빙 (index: false 로 자동 index.html 서빙 비활성화 — 위 라우트로 처리)
 app.use(express.static(publicDir, { index: false }));
 

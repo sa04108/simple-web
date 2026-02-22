@@ -12,7 +12,7 @@
 
 // ── 모듈 연결 ─────────────────────────────────────────────────────────────────
 
-import { DEFAULT_VIEW, el, state } from "./app-state.js";
+import { DEFAULT_VIEW, el, state } from "./app-state.js?v=__APP_VERSION__";
 import {
   canManageUsers,
   clearCreateFieldFeedback,
@@ -29,7 +29,7 @@ import {
   setSettingsError,
   showToast,
   syncDomainPreview,
-} from "./app-utils.js";
+} from "./app-utils.js?v=__APP_VERSION__";
 import {
   bindBackdropClose,
   closeCreateUserModal,
@@ -49,7 +49,7 @@ import {
   switchView,
   toggleMobileMenu,
   updateAuthUi,
-} from "./app-ui.js";
+} from "./app-ui.js?v=__APP_VERSION__";
 import {
   handleTabCompletion,
   historyBack,
@@ -59,7 +59,7 @@ import {
   resetTabCompletionState,
   runExecCommand,
   setExecApiHandlers,
-} from "./app-exec.js";
+} from "./app-exec.js?v=__APP_VERSION__";
 import {
   apiFetch,
   getActionTarget,
@@ -85,7 +85,7 @@ import {
   startAdminLogsAutoRefresh,
   stopAdminLogsAutoRefresh,
   stopAutoRefresh,
-} from "./app-api.js";
+} from "./app-api.js?v=__APP_VERSION__";
 
 // 로그 새로고침 버튼 UI 상태 동기화 (data-auto 속성 + 텍스트)
 function syncLogRefreshBtn(btn, isAuto) {

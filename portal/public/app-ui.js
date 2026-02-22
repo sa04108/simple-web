@@ -20,7 +20,7 @@ import {
   el,
   modalBackdropState,
   state,
-} from "./app-state.js";
+} from "./app-state.js?v=__APP_VERSION__";
 import {
   applyAccessState,
   canManageUsers,
@@ -31,8 +31,8 @@ import {
   setDeleteUserError,
   setPromoteAdminError,
   setSettingsError,
-} from "./app-utils.js";
-import { renderUsers, renderJobList } from "./app-render.js";
+} from "./app-utils.js?v=__APP_VERSION__";
+import { renderUsers, renderJobList } from "./app-render.js?v=__APP_VERSION__";
 
 const uiHandlers = {
   loadDetailEnv: async () => {},
