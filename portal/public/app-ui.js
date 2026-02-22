@@ -11,8 +11,10 @@
 // ── 뷰 전환 ──────────────────────────────────────────────────────────────────
 
 import {
+  AVAILABLE_ADMIN_TABS,
   AVAILABLE_DETAIL_TABS,
   AVAILABLE_VIEWS,
+  DEFAULT_ADMIN_TAB,
   DEFAULT_DETAIL_TAB,
   DEFAULT_VIEW,
   el,
@@ -88,6 +90,22 @@ function switchDetailTab(tabName) {
   el.detailPanelLogs.hidden     = nextTab !== "logs";
   el.detailPanelExec.hidden     = nextTab !== "exec";
   el.detailPanelSettings.hidden = nextTab !== "settings";
+}
+
+// ── Admin 대시보드 서브탭 ──────────────────────────────────────────────────────
+
+function switchAdminTab(tabName) {
+  const nextTab = AVAILABLE_ADMIN_TABS.includes(tabName) ? tabName : DEFAULT_ADMIN_TAB;
+  state.activeAdminTab = nextTab;
+
+  el.adminTabBtns.forEach((btn) => {
+    const isActive = btn.dataset.adminTab === nextTab;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", String(isActive));
+  });
+
+  if (el.adminPanelApps) el.adminPanelApps.hidden = nextTab !== "apps";
+  if (el.adminPanelLogs) el.adminPanelLogs.hidden = nextTab !== "logs";
 }
 
 // 앱 관리 화면으로 진입한다.
@@ -359,6 +377,7 @@ export {
   openSettingsModal,
   openJobListModal,
   renderJobIndicator,
+  switchAdminTab,
   switchDetailTab,
   switchView,
   toggleMobileMenu,

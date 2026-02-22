@@ -44,6 +44,7 @@ import {
   openPromoteAdminModal,
   openSettingsModal,
   openJobListModal,
+  switchAdminTab,
   switchDetailTab,
   switchView,
   toggleMobileMenu,
@@ -298,6 +299,13 @@ el.appsContainer.addEventListener("click", async (event) => {
 });
 
 // ── Admin 대시보드 ────────────────────────────────────────────────────────────
+
+// Admin 서브탭 전환
+el.adminTabBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    switchAdminTab(btn.dataset.adminTab);
+  });
+});
 
 if (el.adminRefreshAppsBtn) {
   el.adminRefreshAppsBtn.addEventListener("click", async () => {

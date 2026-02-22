@@ -245,11 +245,26 @@
 
             <!-- ── Admin 대시보드 ── -->
             <section id="view-admin-dashboard" class="view-section" hidden>
-                <header class="view-header">
-                    <h2>Admin 대시보드</h2>
-                    <p class="view-subtitle">모든 유저의 배포된 앱 현황과 시스템 로그를 확인합니다.</p>
-                </header>
-                <section class="panel app-panel" style="margin-bottom: 24px;">
+                <!-- Admin Sub-GNB -->
+                <nav class="app-detail-gnb" aria-label="Admin 대시보드 네비게이션">
+                    <div class="app-detail-gnb-left">
+                        <div class="app-detail-title">
+                            <span class="app-detail-appname">Admin</span>
+                            <span class="app-detail-label">대시보드</span>
+                        </div>
+                    </div>
+                    <div class="app-detail-tabs" role="tablist" aria-label="Admin 대시보드 탭">
+                        <button id="admin-tab-btn-apps" class="detail-tab-btn active" type="button"
+                            data-admin-tab="apps" role="tab" aria-selected="true"
+                            aria-controls="admin-panel-apps">Apps</button>
+                        <button id="admin-tab-btn-logs" class="detail-tab-btn" type="button" data-admin-tab="logs"
+                            role="tab" aria-selected="false" aria-controls="admin-panel-logs">Logs</button>
+                    </div>
+                </nav>
+
+                <!-- Apps 패널 -->
+                <section id="admin-panel-apps" class="panel detail-panel" role="tabpanel"
+                    aria-labelledby="admin-tab-btn-apps">
                     <div class="panel-head">
                         <h3>전체 앱 목록</h3>
                         <button id="admin-refresh-apps-btn" class="ghost-btn" type="button">새로고침</button>
@@ -257,7 +272,10 @@
                     <p id="admin-empty-state" class="empty-state">조회된 앱이 없습니다.</p>
                     <div id="admin-apps-container" class="apps-container"></div>
                 </section>
-                <section class="panel detail-panel" style="margin-top: 2rem;">
+
+                <!-- Logs 패널 -->
+                <section id="admin-panel-logs" class="panel detail-panel" role="tabpanel"
+                    aria-labelledby="admin-tab-btn-logs" hidden>
                     <div class="panel-head logs-head">
                         <h3>Portal 시스템 로그</h3>
                         <div class="logs-controls">

@@ -13,8 +13,10 @@ export const AUTO_REFRESH_MS = 5000;
 export const UI_STATE_STORAGE_KEY = "portal.uiState";
 export const AVAILABLE_VIEWS = ["dashboard", "create", "app-detail", "users", "admin-dashboard"];
 export const AVAILABLE_DETAIL_TABS = ["logs", "exec", "settings"];
+export const AVAILABLE_ADMIN_TABS = ["apps", "logs"];
 export const DEFAULT_VIEW = "dashboard";
 export const DEFAULT_DETAIL_TAB = "logs";
+export const DEFAULT_ADMIN_TAB = "apps";
 
 // 앱 생성 폼 필드 오류 표시용 CSS 클래스
 export const CREATE_FIELD_INVALID_CLASS = "field-invalid";
@@ -41,6 +43,7 @@ export const state = {
   adminLogsTimer:  null,   // Admin Portal 로그 자동 갱신
   activeView:      DEFAULT_VIEW,
   activeDetailTab: DEFAULT_DETAIL_TAB,
+  activeAdminTab:  DEFAULT_ADMIN_TAB,
   selectedApp:     null,
 };
 
@@ -98,7 +101,7 @@ export const el = {
   // 앱 관리 서브 GNB
   appDetailBackBtn:  document.getElementById("app-detail-back-btn"),
   appDetailAppname:  document.getElementById("app-detail-appname"),
-  detailTabBtns:     Array.from(document.querySelectorAll(".detail-tab-btn")),
+  detailTabBtns:     Array.from(document.querySelectorAll("#view-app-detail .detail-tab-btn")),
 
   // 앱 관리 패널
   detailPanelLogs:     document.getElementById("detail-panel-logs"),
@@ -165,6 +168,9 @@ export const el = {
   jobListEmpty:           document.getElementById("job-list-empty"),
 
   // Admin 대시보드
+  adminTabBtns:           Array.from(document.querySelectorAll(".detail-tab-btn[data-admin-tab]")),
+  adminPanelApps:         document.getElementById("admin-panel-apps"),
+  adminPanelLogs:         document.getElementById("admin-panel-logs"),
   adminRefreshAppsBtn:    document.getElementById("admin-refresh-apps-btn"),
   adminAppsContainer:     document.getElementById("admin-apps-container"),
   adminEmptyState:        document.getElementById("admin-empty-state"),
