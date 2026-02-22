@@ -83,6 +83,7 @@ const APP_VERSION_ETAG = `"${APP_VERSION}"`;
 function serveHtmlWithVersion(res, filePath) {
   const html = fs.readFileSync(filePath, "utf-8").replace(/__APP_VERSION__/g, APP_VERSION);
   res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.setHeader("Cache-Control", "no-store");
   return res.send(html);
 }
 

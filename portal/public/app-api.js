@@ -35,6 +35,7 @@ async function apiFetch(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     credentials: "same-origin",
+    cache: "no-store",
     headers,
   });
   const payload = await response.json().catch(() => ({}));
