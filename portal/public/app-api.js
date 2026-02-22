@@ -107,7 +107,6 @@ async function refreshDashboardData() {
   await loadUsers();
   if (state.user?.role === "admin") {
     await loadAdminApps();
-    await loadPortalLogs();
   }
 }
 
@@ -129,61 +128,43 @@ async function loadPortalLogs() {
     const data = await apiFetch(`/admin/portal-logs?lines=${lines}`);
     el.adminPortalLogsOutput.textContent = data.logs || "(empty)";
   } catch (error) {
-    el.adminPortalLogsOutput.textContent = "Failed to load portal logs.";
+    el.adminPortalLogsOutput.textContent = "포털 로그를 불러오지 못했습니다.";
   }
 }
 
 // ── 로그 패널 자동 갱신 (per-panel) ────────────────────────────────────────────────────
+//
+// 타이머 시작/중지만 담당한다.
+// 버튼 UI 상태 동기화는 호출측(app.js)의 역할.
 
-/** App Detail Logs 패널 토ꫨ 새로고침 시작 */
+/** App Detail Logs 타이머 시작. 이미 실행 중이면 no-op. */
 function startDetailLogsAutoRefresh() {
-  if (state.detailLogsTimer) return; // 이미 실행중
+  if (state.detailLogsTimer) return;
   state.detailLogsTimer = setInterval(async () => {
     if (state.activeView !== "app-detail" || state.activeDetailTab !== "logs") return;
     await loadDetailLogs().catch(() => {});
   }, AUTO_REFRESH_MS);
-  // 버튼에 Auto 상태 표시
-  if (el.detailRefreshLogsBtn) {
-    el.detailRefreshLogsBtn.dataset.auto = "true";
-    el.detailRefreshLogsBtn.querySelector(".refresh-label").textContent = "Auto";
-  }
 }
 
-/** App Detail Logs 패널 토ꫨ 새로고침 중지 */
+/** App Detail Logs 타이머 중지. 이미 중지된 상태면 no-op. */
 function stopDetailLogsAutoRefresh() {
-  if (state.detailLogsTimer) {
-    clearInterval(state.detailLogsTimer);
-    state.detailLogsTimer = null;
-  }
-  if (el.detailRefreshLogsBtn) {
-    el.detailRefreshLogsBtn.dataset.auto = "false";
-    el.detailRefreshLogsBtn.querySelector(".refresh-label").textContent = "새로고침";
-  }
+  clearInterval(state.detailLogsTimer);
+  state.detailLogsTimer = null;
 }
 
-/** Admin Portal Logs 패널 토ꫨ 새로고침 시작 */
+/** Admin Portal Logs 타이머 시작. 이미 실행 중이면 no-op. */
 function startAdminLogsAutoRefresh() {
   if (state.adminLogsTimer) return;
   state.adminLogsTimer = setInterval(async () => {
     if (state.activeView !== "admin-dashboard") return;
     await loadPortalLogs().catch(() => {});
   }, AUTO_REFRESH_MS);
-  if (el.adminRefreshPortalLogsBtn) {
-    el.adminRefreshPortalLogsBtn.dataset.auto = "true";
-    el.adminRefreshPortalLogsBtn.querySelector(".refresh-label").textContent = "Auto";
-  }
 }
 
-/** Admin Portal Logs 패널 토ꫨ 새로고침 중지 */
+/** Admin Portal Logs 타이머 중지. 이미 중지된 상태면 no-op. */
 function stopAdminLogsAutoRefresh() {
-  if (state.adminLogsTimer) {
-    clearInterval(state.adminLogsTimer);
-    state.adminLogsTimer = null;
-  }
-  if (el.adminRefreshPortalLogsBtn) {
-    el.adminRefreshPortalLogsBtn.dataset.auto = "false";
-    el.adminRefreshPortalLogsBtn.querySelector(".refresh-label").textContent = "새로고침";
-  }
+  clearInterval(state.adminLogsTimer);
+  state.adminLogsTimer = null;
 }
 
 // ── Job 폴링 ─────────────────────────────────────────────────────────────────

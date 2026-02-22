@@ -86,13 +86,19 @@ import {
   stopAutoRefresh,
 } from "./app-api.js";
 
+// 로그 새로고침 버튼 UI 상태 동기화 (data-auto 속성 + 텍스트)
+function syncLogRefreshBtn(btn, isAuto) {
+  if (!btn) return;
+  btn.dataset.auto = String(isAuto);
+  btn.querySelector(".refresh-label").textContent = isAuto ? "Auto" : "새로고침";
+}
+
 setExecApiHandlers({ apiFetch });
 configureUiHandlers({
   handleRequestError,
   loadDetailEnv,
   loadDetailLogs,
   resetExecForApp,
-  // interrupted/failed job 전체 재시도 (job indicator에서 호출)
   retryAllAlertJobs: async (alertJobs) => {
     for (const job of alertJobs) {
       await retryJob(job.id).catch(() => {});
@@ -148,14 +154,15 @@ el.detailTabBtns.forEach((btn) => {
 
 // ── 로그 ─────────────────────────────────────────────────────────────────
 
-// 클릭 시: Auto Off → 1회 즉시 새로고침 + Auto로 전환 / Auto On → Auto Off
+// 클릭: Auto On → 타이머 Off / Auto Off → 1회 로드 + 타이머 On
 el.detailRefreshLogsBtn.addEventListener("click", async () => {
-  const isAuto = el.detailRefreshLogsBtn.dataset.auto === "true";
-  if (isAuto) {
+  if (state.detailLogsTimer) {
     stopDetailLogsAutoRefresh();
+    syncLogRefreshBtn(el.detailRefreshLogsBtn, false);
   } else {
     await loadDetailLogs().catch(handleRequestError);
     startDetailLogsAutoRefresh();
+    syncLogRefreshBtn(el.detailRefreshLogsBtn, true);
   }
 });
 
@@ -305,12 +312,13 @@ if (el.adminRefreshAppsBtn) {
 
 if (el.adminRefreshPortalLogsBtn) {
   el.adminRefreshPortalLogsBtn.addEventListener("click", async () => {
-    const isAuto = el.adminRefreshPortalLogsBtn.dataset.auto === "true";
-    if (isAuto) {
+    if (state.adminLogsTimer) {
       stopAdminLogsAutoRefresh();
+      syncLogRefreshBtn(el.adminRefreshPortalLogsBtn, false);
     } else {
       await loadPortalLogs().catch(handleRequestError);
       startAdminLogsAutoRefresh();
+      syncLogRefreshBtn(el.adminRefreshPortalLogsBtn, true);
     }
   });
 }
@@ -562,14 +570,21 @@ async function bootstrap() {
 
   await refreshDashboardData();
 
-  // 새로고침/재방문 시 진행중 job 복원
+  // \ub85c\uadf8 \uc790\ub3d9 \uac31\uc2e0 \ud0c0\uc774\uba38\ub294 \ud56d\uc0c1 \ucf1c\uc9c4 \uc0c1\ud0dc\ub85c \uc720\uc9c0\ud55c\ub2e4.
+  // \ud0c0\uc774\uba38 \ub0b4\ubd80\uc5d0\uc11c activeView\ub97c \uccb4\ud06c\ud558\ubbc0\ub85c \uc6d0\uce58 \uc54a\ub294 \ube37\uce58\ub294 \ubc1c\uc0dd\ud558\uc9c0 \uc54a\ub294\ub2e4.
+  startDetailLogsAutoRefresh();
+  startAdminLogsAutoRefresh();
+  syncLogRefreshBtn(el.detailRefreshLogsBtn, true);
+  syncLogRefreshBtn(el.adminRefreshPortalLogsBtn, true);
+
+  // \uc0c8\ub85c\uace0\uce68/\uc7ac\ubc29\ubb38 \uc2dc \uc9c4\ud589\uc911 job \ubcf5\uc6d0
   await loadAndRecoverJobs();
 
   if (isPasswordLocked()) {
-    setBanner("초기 비밀번호를 우상단 설정에서 변경하세요.", "error");
+    setBanner("\ucd08\uae30 \ube44\ubc00\ubc88\ud638\ub97c \uc6b0\uc0c1\ub2e8 \uc124\uc815\uc5d0\uc11c \ubcc0\uacbd\ud558\uc138\uc694.", "error");
     return;
   }
-  setBanner("로그인 상태가 확인되었습니다.", "success");
+  setBanner("\ub85c\uadf8\uc778 \uc0c1\ud0dc\uac00 \ud655\uc778\ub418\uc5c8\uc2b5\ub2c8\ub2e4.", "success");
 }
 
 bootstrap().catch((error) => {
