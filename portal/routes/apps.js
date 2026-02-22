@@ -19,9 +19,9 @@ const {
   assertUserId,
   assertAppName,
   pathExists,
-  readContainerName,
   buildAppInfo,
   ensureAppExists,
+  findDockerApp,
   normalizeStatus,
   listDockerApps,
   getDockerContainerStatus,
@@ -30,6 +30,7 @@ const {
   patchComposeEnvFile,
   readEnvFile,
   writeEnvFile,
+  getContainerLogs,
   runContainerExec,
   runContainerComplete,
 } = require("../appManager");
@@ -275,15 +276,18 @@ router.delete("/:userid/:appname", async (req, res, next) => {
 
 // ── 로그 ──────────────────────────────────────────────────────────────────────
 
-// GET /apps/:userid/:appname/logs?lines=N — docker compose logs (동기, 빠름)
+// GET /apps/:userid/:appname/logs?lines=N — docker logs (동기, compose 파일 불필요)
 router.get("/:userid/:appname/logs", async (req, res, next) => {
   try {
-    const { appDir } = await resolveAppRequestContext(req);
+    const { userid, appname } = await resolveAppRequestContext(req);
     const requestedLines = Number.parseInt(String(req.query.lines || "120"), 10);
     const lines = Number.isFinite(requestedLines) ? Math.max(1, Math.min(1000, requestedLines)) : 120;
 
-    const result = await runDockerCompose(appDir, ["logs", "--no-color", "--tail", String(lines), "app"]);
-    return sendOk(res, { lines, logs: result.stdout || "" });
+    const app = await findDockerApp(userid, appname);
+    if (!app?.containerName) throw new AppError(404, "Container not found for this app");
+
+    const logs = await getContainerLogs(app.containerName, lines);
+    return sendOk(res, { lines, logs });
   } catch (error) {
     return next(error);
   }
@@ -294,7 +298,7 @@ router.get("/:userid/:appname/logs", async (req, res, next) => {
 // POST /apps/:userid/:appname/exec — 컨테이너 내부에서 임의 명령 실행
 router.post("/:userid/:appname/exec", async (req, res, next) => {
   try {
-    const { appDir } = await resolveAppRequestContext(req);
+    const { userid, appname } = await resolveAppRequestContext(req);
 
     const command = String(req.body?.command || "").trim();
     if (!command) throw new AppError(400, "command is required");
@@ -302,10 +306,10 @@ router.post("/:userid/:appname/exec", async (req, res, next) => {
 
     const cwd = String(req.body?.cwd || "").trim();
 
-    const containerName = await readContainerName(appDir);
-    if (!containerName) throw new AppError(404, "Container not found for this app");
+    const app = await findDockerApp(userid, appname);
+    if (!app?.containerName) throw new AppError(404, "Container not found for this app");
 
-    const { stdout, stderr } = await runContainerExec(containerName, command, cwd);
+    const { stdout, stderr } = await runContainerExec(app.containerName, command, cwd);
     return sendOk(res, { command, output: stdout, stderr });
   } catch (error) {
     return next(error);
@@ -315,17 +319,17 @@ router.post("/:userid/:appname/exec", async (req, res, next) => {
 // POST /apps/:userid/:appname/exec/complete — 탭 완성
 router.post("/:userid/:appname/exec/complete", async (req, res, next) => {
   try {
-    const { appDir } = await resolveAppRequestContext(req);
+    const { userid, appname } = await resolveAppRequestContext(req);
 
     const partial = String(req.body?.partial ?? "");
     if (partial.length > 512) throw new AppError(400, "partial too long (max 512 chars)");
 
     const cwd = String(req.body?.cwd || "").trim();
 
-    const containerName = await readContainerName(appDir);
-    if (!containerName) throw new AppError(404, "Container not found for this app");
+    const app = await findDockerApp(userid, appname);
+    if (!app?.containerName) throw new AppError(404, "Container not found for this app");
 
-    const completions = await runContainerComplete(containerName, partial, cwd);
+    const completions = await runContainerComplete(app.containerName, partial, cwd);
     return sendOk(res, { completions });
   } catch (error) {
     return next(error);

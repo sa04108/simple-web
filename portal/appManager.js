@@ -164,32 +164,25 @@ function normalizeStatus(statusText) {
 }
 
 // 앱 하나의 완전한 정보 객체를 빌드한다.
-// dockerAppItem이 제공되면 파싱된 값을 사용하고, 없으면 파일시스템/docker ps로 직접 조회한다.
+// dockerAppItem이 제공되면 파싱된 값을 사용하고, 없으면 Docker 레이블 캐시에서 조회한다.
+// 어느 경우도 파일시스템에 접근하지 않는다 (metadata는 null-safe fallback).
 async function buildAppInfo(userid, appname, dockerAppItem = null) {
   const appDir = getAppDir(userid, appname);
   const metadata = await readAppMeta(appDir); // 디렉토리가 없어도 안전하게 null 반환
 
-  let appContainerName = dockerAppItem?.containerName;
-  let rawStatus = dockerAppItem?.rawStatus;
-  let createdAtStr = dockerAppItem?.createdAt;
-  let domainStr = dockerAppItem?.domain;
-
-  if (!dockerAppItem) {
-    appContainerName = await readContainerName(appDir);
-    rawStatus = await getDockerContainerStatus(appDir, appContainerName);
-  }
+  const item = dockerAppItem ?? await findDockerApp(userid, appname);
 
   return {
     userid,
     appname,
-    domain: domainStr || domainName(userid, appname),
-    containerName: appContainerName || null,
-    status: normalizeStatus(rawStatus),
-    rawStatus: rawStatus || "unknown",
+    domain: item?.domain || domainName(userid, appname),
+    containerName: item?.containerName || null,
+    status: normalizeStatus(item?.rawStatus ?? "not-found"),
+    rawStatus: item?.rawStatus || "not-found",
     repoUrl: metadata?.repoUrl || null,
     branch: metadata?.branch || null,
     detectedRuntime: metadata?.detectedRuntime || null,
-    createdAt: metadata?.createdAt || createdAtStr || null,
+    createdAt: metadata?.createdAt || item?.createdAt || null,
     appDir,
   };
 }
@@ -420,6 +413,33 @@ async function listDockerApps() {
   return result;
 }
 
+// userid + appname 으로 단일 Docker 앱 항목을 조회한다.
+// listDockerApps 캐시를 재활용하므로 추가 docker 호출이 없다.
+async function findDockerApp(userid, appname) {
+  const { apps } = await listDockerApps();
+  return (
+    apps.find(
+      (a) =>
+        a.userid.toLowerCase() === userid.toLowerCase() &&
+        a.appname.toLowerCase() === appname.toLowerCase()
+    ) ?? null
+  );
+}
+
+// 컨테이너 이름을 받아 로그를 조회한다. compose 파일이 필요 없다.
+async function getContainerLogs(containerName, lines) {
+  try {
+    const result = await runCommand("docker", [
+      "logs", "--no-color", "--tail", String(lines), containerName,
+    ]);
+    // docker logs는 stdout + stderr 모두를 활용하므로 병합한다.
+    return [result.stdout, result.stderr].filter(Boolean).join("\n");
+  } catch (error) {
+    if (error.code === "ENOENT") throw new AppError(503, "docker command is not available");
+    throw new AppError(502, `docker logs failed: ${summarizeCommandError(error)}`);
+  }
+}
+
 // ── 환경변수 파일 관리 ────────────────────────────────────────────────────────
 
 // 구형 compose 파일(env_file 항목 없음)에 .env.paas 참조를 자동으로 주입한다.
@@ -542,6 +562,7 @@ module.exports = {
   // 앱 정보
   buildAppInfo,
   ensureAppExists,
+  findDockerApp,
   normalizeStatus,
   // 커맨드 실행
   runCommand,
@@ -556,6 +577,7 @@ module.exports = {
   readEnvFile,
   writeEnvFile,
   // 컨테이너 Exec
+  getContainerLogs,
   runContainerExec,
   runContainerComplete,
 };
