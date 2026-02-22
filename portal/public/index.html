@@ -280,6 +280,8 @@
             <p class="modal-description">비밀번호를 변경할 수 있습니다.</p>
             <p id="settings-error" class="modal-error" role="alert" hidden></p>
             <form id="password-form" novalidate>
+                <!-- 브라우저 패스워드 매니저 접근성을 위한 숨김 필드 -->
+                <input id="password-username-input" type="text" autocomplete="username" hidden />
                 <label for="current-password-input">현재 비밀번호</label>
                 <input id="current-password-input" type="password" autocomplete="current-password" required />
                 <label for="new-password-input">새 비밀번호 (8자 이상)</label>
@@ -338,6 +340,8 @@
             <p class="modal-description">현재 로그인한 admin 비밀번호를 입력해야 제거할 수 있습니다.</p>
             <p id="delete-user-error" class="modal-error" role="alert" hidden></p>
             <form id="delete-user-form" novalidate>
+                <!-- 브라우저 패스워드 매니저 접근성을 위한 숨김 필드 -->
+                <input id="delete-username-input" type="text" autocomplete="username" hidden />
                 <label for="delete-user-password-input">현재 admin 비밀번호</label>
                 <input id="delete-user-password-input" type="password" placeholder="현재 로그인한 admin 비밀번호"
                     autocomplete="current-password" required />

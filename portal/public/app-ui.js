@@ -139,6 +139,7 @@ function openSettingsModal() {
   if (!isLoggedIn()) return;
   modalBackdropState.settings = false;
   setSettingsError("");
+  el.passwordUsernameInput.value = state.user.username;
   el.settingsModal.hidden = false;
   syncModalOpenState();
   el.currentPasswordInput.focus();
@@ -182,6 +183,7 @@ function openDeleteUserModal(targetUser) {
   if (!state.pendingDeleteUser) return;
   modalBackdropState.deleteUser = false;
   setDeleteUserError("");
+  el.deleteUserUsernameInput.value = state.user.username;
   el.deleteUserPasswordInput.value = "";
   el.deleteUserTarget.textContent = `'${state.pendingDeleteUser.username}' 사용자를 제거합니다.`;
   el.deleteUserModal.hidden = false;

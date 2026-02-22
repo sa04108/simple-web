@@ -71,6 +71,7 @@ export const el = {
   settingsError:            document.getElementById("settings-error"),
   closeSettingsBtn:         document.getElementById("close-settings-btn"),
   passwordForm:             document.getElementById("password-form"),
+  passwordUsernameInput:    document.getElementById("password-username-input"),
   currentPasswordInput:     document.getElementById("current-password-input"),
   newPasswordInput:         document.getElementById("new-password-input"),
   newPasswordConfirmInput:  document.getElementById("new-password-confirm-input"),
@@ -140,6 +141,7 @@ export const el = {
   deleteUserForm:           document.getElementById("delete-user-form"),
   deleteUserTarget:         document.getElementById("delete-user-target"),
   deleteUserError:          document.getElementById("delete-user-error"),
+  deleteUserUsernameInput:  document.getElementById("delete-username-input"),
   deleteUserPasswordInput:  document.getElementById("delete-user-password-input"),
 
   // Admin 승격 모달
