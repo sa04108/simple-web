@@ -430,7 +430,7 @@ async function findDockerApp(userid, appname) {
 async function getContainerLogs(containerName, lines) {
   try {
     const result = await runCommand("docker", [
-      "logs", "--no-color", "--tail", String(lines), containerName,
+      "logs", "--tail", String(lines), containerName,
     ]);
     // docker logs는 stdout + stderr 모두를 활용하므로 병합한다.
     return [result.stdout, result.stderr].filter(Boolean).join("\n");
