@@ -6,7 +6,7 @@
 //   app-utils.js(escapeHtml, statusClass 등)에 의존한다.
 // =============================================================================
 
-import { el, state } from "./app-state.js?v=__APP_VERSION__";
+import { el, state } from "./app-state.js";
 import {
   canManageApps,
   canManageUsers,
@@ -18,7 +18,7 @@ import {
   isPasswordLocked,
   runtimeBadgeHtml,
   statusClass,
-} from "./app-utils.js?v=__APP_VERSION__";
+} from "./app-utils.js";
 
 // ── 앱 카드 목록 렌더링 ───────────────────────────────────────────────────────
 

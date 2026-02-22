@@ -78,6 +78,7 @@ function canAccessDashboardUi(req) {
 }
 
 const APP_VERSION = Date.now().toString();
+const APP_VERSION_ETAG = `"${APP_VERSION}"`;
 
 function serveHtmlWithVersion(res, filePath) {
   const html = fs.readFileSync(filePath, "utf-8").replace(/__APP_VERSION__/g, APP_VERSION);
@@ -96,18 +97,25 @@ app.get("/auth", (req, res) => {
   return serveHtmlWithVersion(res, authPagePath);
 });
 
-// 클라이언트 JS 파일 모듈 URL 캐시 버스팅을 위해 __APP_VERSION__ 치환
+// 클라이언트 JS 파일: no-cache + ETag 기반 캐시 제어
+// - 같은 서버 세션: If-None-Match 일치 → 304 (디스크 읽기 없음)
+// - 서버 재시작: ETag 불일치 → 200 + 새 파일
 app.get("/*.js", (req, res, next) => {
   const filePath = path.join(publicDir, req.path);
   if (!fs.existsSync(filePath)) {
     return next();
   }
   try {
-    const jsContent = fs.readFileSync(filePath, "utf-8");
-    const versionedJs = jsContent.replace(/__APP_VERSION__/g, APP_VERSION);
     res.setHeader("Content-Type", "application/javascript; charset=utf-8");
-    res.setHeader("Cache-Control", "public, max-age=31536000"); // 1년 캐싱 허용 (URL에 버전이 있으므로 안전함)
-    return res.send(versionedJs);
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("ETag", APP_VERSION_ETAG);
+
+    if (req.headers["if-none-match"] === APP_VERSION_ETAG) {
+      return res.status(304).end();
+    }
+
+    const jsContent = fs.readFileSync(filePath, "utf-8");
+    return res.send(jsContent);
   } catch (error) {
     return next(error);
   }

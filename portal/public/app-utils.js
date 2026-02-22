@@ -16,7 +16,7 @@ import {
   createValidationTimers,
   el,
   state,
-} from "./app-state.js?v=__APP_VERSION__";
+} from "./app-state.js";
 
 // ── Toast 알림 ───────────────────────────────────────────────────────────────
 
