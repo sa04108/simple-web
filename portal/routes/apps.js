@@ -83,6 +83,13 @@ async function resolveAppRequestContext(req) {
   return { userid, appname, appDir };
 }
 
+// 비동기 job 생성을 담당하고 즉시 202 응답을 반환하는 공통 헬퍼
+function dispatchJob(res, type, meta, userid, extraData = {}) {
+  const jobId = jobStore.createJob(type, meta, userid);
+  res.status(202).json({ ok: true, data: { jobId, ...extraData } });
+  setImmediate(() => executeJob(jobStore.getJob(jobId)));
+}
+
 // ── 공용 job 실행 함수 (재시도에도 재사용) ───────────────────────────────────
 
 /**
@@ -175,10 +182,7 @@ router.post("/", async (req, res, next) => {
       throw new AppError(409, "App already exists");
     }
 
-    const jobId = jobStore.createJob("create", { userid, appname, repoUrl, branch }, userid);
-    // 즉시 202 반환 후 백그라운드 실행
-    res.status(202).json({ ok: true, data: { jobId } });
-    setImmediate(() => executeJob(jobStore.getJob(jobId)));
+    dispatchJob(res, "create", { userid, appname, repoUrl, branch }, userid);
   } catch (error) {
     return next(error);
   }
@@ -226,9 +230,7 @@ router.get("/:userid/:appname", async (req, res, next) => {
 router.post("/:userid/:appname/start", async (req, res, next) => {
   try {
     const { userid, appname, appDir } = await resolveAppRequestContext(req);
-    const jobId = jobStore.createJob("start", { userid, appname, appDir }, userid);
-    res.status(202).json({ ok: true, data: { jobId } });
-    setImmediate(() => executeJob(jobStore.getJob(jobId)));
+    dispatchJob(res, "start", { userid, appname, appDir }, userid);
   } catch (error) {
     return next(error);
   }
@@ -238,9 +240,7 @@ router.post("/:userid/:appname/start", async (req, res, next) => {
 router.post("/:userid/:appname/stop", async (req, res, next) => {
   try {
     const { userid, appname, appDir } = await resolveAppRequestContext(req);
-    const jobId = jobStore.createJob("stop", { userid, appname, appDir }, userid);
-    res.status(202).json({ ok: true, data: { jobId } });
-    setImmediate(() => executeJob(jobStore.getJob(jobId)));
+    dispatchJob(res, "stop", { userid, appname, appDir }, userid);
   } catch (error) {
     return next(error);
   }
@@ -250,9 +250,7 @@ router.post("/:userid/:appname/stop", async (req, res, next) => {
 router.post("/:userid/:appname/deploy", async (req, res, next) => {
   try {
     const { userid, appname } = await resolveAppRequestContext(req);
-    const jobId = jobStore.createJob("deploy", { userid, appname }, userid);
-    res.status(202).json({ ok: true, data: { jobId } });
-    setImmediate(() => executeJob(jobStore.getJob(jobId)));
+    dispatchJob(res, "deploy", { userid, appname }, userid);
   } catch (error) {
     return next(error);
   }
@@ -263,9 +261,7 @@ router.delete("/:userid/:appname", async (req, res, next) => {
   try {
     const { userid, appname } = await resolveAppRequestContext(req);
     const keepData = normalizeBoolean(req.body?.keepData, false);
-    const jobId = jobStore.createJob("delete", { userid, appname, keepData }, userid);
-    res.status(202).json({ ok: true, data: { jobId } });
-    setImmediate(() => executeJob(jobStore.getJob(jobId)));
+    dispatchJob(res, "delete", { userid, appname, keepData }, userid);
   } catch (error) {
     return next(error);
   }
@@ -352,9 +348,7 @@ router.put("/:userid/:appname/env", async (req, res, next) => {
     await patchComposeEnvFile(appDir);
     await writeEnvFile(appDir, content);
 
-    const jobId = jobStore.createJob("env-restart", { userid, appname, appDir }, userid);
-    res.status(202).json({ ok: true, data: { jobId, saved: true } });
-    setImmediate(() => executeJob(jobStore.getJob(jobId)));
+    dispatchJob(res, "env-restart", { userid, appname, appDir }, userid, { saved: true });
   } catch (error) {
     return next(error);
   }

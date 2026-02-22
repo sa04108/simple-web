@@ -14,6 +14,8 @@ import { navigateToApp, switchView, updateAuthUi, renderJobIndicator } from "./a
 import {
   canManageApps,
   canManageUsers,
+  formatJobAction,
+  formatJobTarget,
   normalizeErrorMessage,
   redirectToAuth,
   setBanner,
@@ -142,14 +144,17 @@ const TERMINAL_STATUSES = new Set(["done", "failed", "interrupted"]);
 
 /**
  * job 상태를 주기적으로 조회하고 완료/실패 시 UI를 업데이트한다.
- * 페이지 새로고침 후에도 동일 jobId로 재연결되면 상태 복원이 이루어진다.
  *
  * @param {string}   jobId
- * @param {object}   callbacks
- * @param {Function} callbacks.onDone   - status='done' 시 호출 (job 객체 전달)
- * @param {Function} callbacks.onFail   - status='failed'|'interrupted' 시 호출
+ * @param {object}   options
+ * @param {string}   options.actionLabel - 오버라이드할 작업 이름 (예: "앱 생성")
+ * @param {string}   options.appLabel    - 오버라이드할 대상 이름 (예: "user/app")
+ * @param {Function} options.onDone      - status='done' 추가 콜백
+ * @param {Function} options.onFail      - status='failed'|'interrupted' 추가 콜백
  */
-function pollJob(jobId, callbacks = {}) {
+function pollJob(jobId, options = {}) {
+  const { actionLabel, appLabel, onDone, onFail } = options;
+
   if (state.jobPollers.has(jobId)) return; // 이미 폴링 중
 
   const intervalId = setInterval(async () => {
@@ -168,10 +173,18 @@ function pollJob(jobId, callbacks = {}) {
         clearInterval(intervalId);
         state.jobPollers.delete(jobId);
 
+        const action = actionLabel || formatJobAction(job);
+        const target = appLabel || formatJobTarget(job) || job.id;
+
         if (job.status === "done") {
-          callbacks.onDone?.(job);
+          showToast(`✅ ${action} 완료: ${target}`, "success");
+          onDone?.(job);
         } else {
-          callbacks.onFail?.(job);
+          const reason = job.status === "interrupted"
+            ? "서버 재시작으로 중단됨"
+            : (job.error || "오류 발생");
+          showToast(`❌ ${action} 실패: ${target} — ${reason}`, "error", 8000);
+          onFail?.(job);
         }
         // 앱 목록 갱신 (job 완료 후 상태 반영)
         await loadApps().catch(() => {});
@@ -202,42 +215,12 @@ async function loadAndRecoverJobs() {
     // active 상태인 job에 대해 폴링 재개
     for (const job of state.jobs) {
       if (!TERMINAL_STATUSES.has(job.status)) {
-        pollJob(job.id, {
-          onDone: (j) => _onJobDone(j),
-          onFail: (j) => _onJobFail(j),
-        });
+        pollJob(job.id);
       }
     }
   } catch {
     // /jobs 자체 오류는 무시 (앱 기능에 영향 없음)
   }
-}
-
-function _onJobDone(job) {
-  const label = _jobLabel(job);
-  showToast(`✅ 완료: ${label}`, "success");
-}
-
-function _onJobFail(job) {
-  const label = _jobLabel(job);
-  const reason = job.status === "interrupted"
-    ? "서버 재시작으로 인해 중단됨 — 재시도 가능"
-    : (job.error || "알 수 없는 오류");
-  showToast(`❌ 실패: ${label} — ${reason}`, "error", 8000);
-}
-
-function _jobLabel(job) {
-  const { type, meta } = job;
-  const appPart = meta?.appname ? `${meta.userid}/${meta.appname}` : "";
-  const typeMap = {
-    create: "앱 생성",
-    deploy: "재배포",
-    delete: "앱 삭제",
-    start:  "시작",
-    stop:   "중지",
-    "env-restart": "환경변수 재시작",
-  };
-  return appPart ? `${typeMap[type] || type} (${appPart})` : (typeMap[type] || type);
 }
 
 /**
@@ -254,19 +237,15 @@ function startJobPolling(jobId, appLabel, actionLabel) {
   });
   renderJobIndicator(state.jobs);
 
-  pollJob(jobId, {
-    onDone: (job) => {
-      const label = appLabel || _jobLabel(job);
-      showToast(`✅ ${actionLabel} 완료: ${label}`, "success");
-    },
-    onFail: (job) => {
-      const label = appLabel || _jobLabel(job);
-      const reason = job.status === "interrupted"
-        ? "서버 재시작으로 중단됨"
-        : (job.error || "오류 발생");
-      showToast(`❌ ${actionLabel} 실패: ${label} — ${reason}`, "error", 8000);
-    },
-  });
+  pollJob(jobId, { actionLabel, appLabel });
+}
+
+/**
+ * jobId로 job 상태 객체에서 레이블을 추출하거나, 없으면 jobId를 반환한다.
+ */
+function _getJobTargetLabel(jobId) {
+  const job = state.jobs.find((j) => j.id === jobId);
+  return job ? (formatJobTarget(job) || job.id) : jobId;
 }
 
 /**
@@ -274,13 +253,9 @@ function startJobPolling(jobId, appLabel, actionLabel) {
  */
 async function retryJob(jobId) {
   const data = await apiFetch(`/jobs/${jobId}/retry`, { method: "POST" });
-  const job = state.jobs.find((j) => j.id === jobId);
-  const label = job ? _jobLabel(job) : jobId;
+  const label = _getJobTargetLabel(jobId);
 
-  pollJob(jobId, {
-    onDone: (j) => showToast(`✅ 재시도 완료: ${_jobLabel(j)}`, "success"),
-    onFail: (j) => showToast(`❌ 재시도 실패: ${_jobLabel(j)} — ${j.error || "오류"}`, "error", 8000),
-  });
+  pollJob(jobId, { actionLabel: "재시도" });
   showToast(`재시도 요청됨: ${label}`, "info");
   return data;
 }
@@ -290,8 +265,7 @@ async function retryJob(jobId) {
  */
 async function cancelJob(jobId) {
   const data = await apiFetch(`/jobs/${jobId}/cancel`, { method: "POST" });
-  const job = state.jobs.find((j) => j.id === jobId);
-  const label = job ? _jobLabel(job) : jobId;
+  const label = _getJobTargetLabel(jobId);
   showToast(`✅ 작업 취소 완료: ${label}`, "success");
 
   // 상태 배열에서 직접 제거

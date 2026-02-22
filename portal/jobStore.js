@@ -29,6 +29,10 @@ const JOB_STATUS = {
   INTERRUPTED: "interrupted",
 };
 
+const TERMINAL_STATUSES = new Set([JOB_STATUS.DONE, JOB_STATUS.FAILED, JOB_STATUS.INTERRUPTED]);
+const RETRYABLE_STATUSES = new Set([JOB_STATUS.FAILED, JOB_STATUS.INTERRUPTED]);
+const CANCELABLE_STATUSES = new Set([JOB_STATUS.FAILED, JOB_STATUS.INTERRUPTED]);
+
 // 완료된 job 보존 기간 (24시간)
 const JOB_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -141,8 +145,8 @@ function interruptJob(jobId) {
 function requeueJob(jobId) {
   _db.prepare(`
     UPDATE jobs
-    SET status = 'pending', started_at = NULL, finished_at = NULL, error = NULL, output = NULL
-    WHERE id = ? AND status IN ('interrupted', 'failed')
+    SET status = '${JOB_STATUS.PENDING}', started_at = NULL, finished_at = NULL, error = NULL, output = NULL
+    WHERE id = ? AND status IN ('${JOB_STATUS.INTERRUPTED}', '${JOB_STATUS.FAILED}')
   `).run(jobId);
   if (!_logBuffers.has(jobId)) _logBuffers.set(jobId, []);
 }
@@ -320,6 +324,9 @@ function _cleanupExpired() {
 
 module.exports = {
   JOB_STATUS,
+  TERMINAL_STATUSES,
+  RETRYABLE_STATUSES,
+  CANCELABLE_STATUSES,
   init,
   createJob,
   startJob,

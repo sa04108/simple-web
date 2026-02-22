@@ -177,6 +177,26 @@ function statusClass(status) {
   return `status-${normalized}`;
 }
 
+// ── Job 문자열 포맷 ────────────────────────────────────────────────────────────
+
+// Job 객체에서 앱 식별자(userid/appname)를 추출한다. 없으면 빈 문자열을 반환한다.
+function formatJobTarget(job) {
+  return job.meta?.appname ? `${job.meta.userid}/${job.meta.appname}` : "";
+}
+
+// Job 객체에서 표시용 작업 이름(한글)을 추출한다.
+function formatJobAction(job) {
+  const typeMap = {
+    create: "앱 생성",
+    deploy: "재배포",
+    delete: "앱 삭제",
+    start:  "시작",
+    stop:   "중지",
+    "env-restart": "환경변수 재시작",
+  };
+  return typeMap[job.type] || String(job.type || "작업");
+}
+
 // ── 인증 상태 확인 ────────────────────────────────────────────────────────────
 
 function isLoggedIn()       { return Boolean(state.user); }
@@ -269,6 +289,8 @@ export {
   clearCreateFieldFeedback,
   escapeHtml,
   formatDate,
+  formatJobAction,
+  formatJobTarget,
   isAdminUser,
   isLoggedIn,
   isPasswordLocked,

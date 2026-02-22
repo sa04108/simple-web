@@ -12,6 +12,8 @@ import {
   canManageUsers,
   escapeHtml,
   formatDate,
+  formatJobAction,
+  formatJobTarget,
   isLoggedIn,
   isPasswordLocked,
   runtimeBadgeHtml,
@@ -171,16 +173,8 @@ function renderJobList(jobs) {
   table.hidden = false;
 
   el.jobListTbody.innerHTML = activeJobs.map((job) => {
-    const typeMap = {
-      create: "앱 생성",
-      deploy: "재배포",
-      delete: "앱 삭제",
-      start:  "시작",
-      stop:   "중지",
-      "env-restart": "환경변수 재시작",
-    };
-    const jobName = escapeHtml(typeMap[job.type] || job.type);
-    const appPart = job.meta?.appname ? escapeHtml(`${job.meta.userid}/${job.meta.appname}`) : "-";
+    const jobName = escapeHtml(formatJobAction(job));
+    const appPart = escapeHtml(formatJobTarget(job) || "-");
     const rawStatus = job.status;
     const safeStatus = escapeHtml(rawStatus);
     

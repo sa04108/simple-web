@@ -26,6 +26,19 @@ function assertJobAccess(req, job) {
   if (job.userid !== user.username) throw new AppError(403, "Forbidden");
 }
 
+// 공통 middleware: job을 조회하고 접근 권한을 확인하여 req.job에 주입한다.
+function resolveJob(req, res, next) {
+  try {
+    const job = jobStore.getJob(req.params.id);
+    if (!job) throw new AppError(404, "Job not found");
+    assertJobAccess(req, job);
+    req.job = job;
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
+
 // ── GET /jobs ─────────────────────────────────────────────────────────────────
 
 // 현재 사용자의 job 목록 반환 (active + 최근 24h 완료)
@@ -44,12 +57,9 @@ router.get("/", (req, res, next) => {
 
 // ── GET /jobs/:id ─────────────────────────────────────────────────────────────
 
-router.get("/:id", (req, res, next) => {
+router.get("/:id", resolveJob, (req, res, next) => {
   try {
-    const job = jobStore.getJob(req.params.id);
-    if (!job) return next(new AppError(404, "Job not found"));
-    assertJobAccess(req, job);
-    return sendOk(res, { job });
+    return sendOk(res, { job: req.job });
   } catch (error) {
     return next(error);
   }
@@ -57,15 +67,12 @@ router.get("/:id", (req, res, next) => {
 
 // ── GET /jobs/:id/stream — SSE 실시간 로그 스트리밍 ──────────────────────────
 
-router.get("/:id/stream", (req, res, next) => {
+router.get("/:id/stream", resolveJob, (req, res, next) => {
   try {
-    const job = jobStore.getJob(req.params.id);
-    if (!job) return next(new AppError(404, "Job not found"));
-    assertJobAccess(req, job);
+    const job = req.job;
 
     // 이미 완료된 job은 SSE가 필요 없음 — 즉시 상태 전송 후 종료
-    const terminalStatuses = ["done", "failed", "interrupted"];
-    if (terminalStatuses.includes(job.status)) {
+    if (jobStore.TERMINAL_STATUSES.has(job.status)) {
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
@@ -113,16 +120,13 @@ function setExecuteJobFn(fn) {
   _executeJobFn = fn;
 }
 
-router.post("/:id/retry", async (req, res, next) => {
+router.post("/:id/retry", resolveJob, async (req, res, next) => {
   try {
     if (!_executeJobFn) throw new AppError(500, "Job executor not initialized");
 
-    const job = jobStore.getJob(req.params.id);
-    if (!job) return next(new AppError(404, "Job not found"));
-    assertJobAccess(req, job);
+    const job = req.job;
 
-    const retryableStatuses = ["interrupted", "failed"];
-    if (!retryableStatuses.includes(job.status)) {
+    if (!jobStore.RETRYABLE_STATUSES.has(job.status)) {
       throw new AppError(409, `Job is in '${job.status}' status and cannot be retried`);
     }
 
@@ -146,14 +150,11 @@ router.post("/:id/retry", async (req, res, next) => {
 
 // interrupted 또는 failed 상태의 job을 취소하고 DB에서 완전히 제거한다.
 // create 작업의 경우 생성 중이던 잔류 파일과 컨테이너를 함께 정리(delete.sh)한다.
-router.post("/:id/cancel", async (req, res, next) => {
+router.post("/:id/cancel", resolveJob, async (req, res, next) => {
   try {
-    const job = jobStore.getJob(req.params.id);
-    if (!job) return next(new AppError(404, "Job not found"));
-    assertJobAccess(req, job);
+    const job = req.job;
 
-    const cancelableStatuses = ["interrupted", "failed"];
-    if (!cancelableStatuses.includes(job.status)) {
+    if (!jobStore.CANCELABLE_STATUSES.has(job.status)) {
       throw new AppError(409, `Job is in '${job.status}' status and cannot be canceled`);
     }
 
