@@ -67,6 +67,8 @@ import {
   handleSettingsModalError,
   loadAndRecoverJobs,
   loadApps,
+  loadAdminApps,
+  loadPortalLogs,
   loadConfig,
   loadDetailEnv,
   loadDetailLogs,
@@ -77,6 +79,10 @@ import {
   retryJob,
   cancelJob,
   saveDetailEnv,
+  startDetailLogsAutoRefresh,
+  stopDetailLogsAutoRefresh,
+  startAdminLogsAutoRefresh,
+  stopAdminLogsAutoRefresh,
   stopAutoRefresh,
 } from "./app-api.js";
 
@@ -140,14 +146,16 @@ el.detailTabBtns.forEach((btn) => {
   });
 });
 
-// ── 로그 ──────────────────────────────────────────────────────────────────────
+// ── 로그 ─────────────────────────────────────────────────────────────────
 
+// 클릭 시: Auto Off → 1회 즉시 새로고침 + Auto로 전환 / Auto On → Auto Off
 el.detailRefreshLogsBtn.addEventListener("click", async () => {
-  try {
-    await loadDetailLogs();
-    setBanner("로그 새로고침 완료", "success");
-  } catch (error) {
-    await handleRequestError(error);
+  const isAuto = el.detailRefreshLogsBtn.dataset.auto === "true";
+  if (isAuto) {
+    stopDetailLogsAutoRefresh();
+  } else {
+    await loadDetailLogs().catch(handleRequestError);
+    startDetailLogsAutoRefresh();
   }
 });
 
@@ -281,6 +289,45 @@ el.appsContainer.addEventListener("click", async (event) => {
     await handleRequestError(error);
   }
 });
+
+// ── Admin 대시보드 ────────────────────────────────────────────────────────────
+
+if (el.adminRefreshAppsBtn) {
+  el.adminRefreshAppsBtn.addEventListener("click", async () => {
+    try {
+      await loadAdminApps();
+      setBanner("전체 앱 목록 갱신 완료", "success");
+    } catch (error) {
+      await handleRequestError(error);
+    }
+  });
+}
+
+if (el.adminRefreshPortalLogsBtn) {
+  el.adminRefreshPortalLogsBtn.addEventListener("click", async () => {
+    const isAuto = el.adminRefreshPortalLogsBtn.dataset.auto === "true";
+    if (isAuto) {
+      stopAdminLogsAutoRefresh();
+    } else {
+      await loadPortalLogs().catch(handleRequestError);
+      startAdminLogsAutoRefresh();
+    }
+  });
+}
+
+if (el.adminAppsContainer) {
+  el.adminAppsContainer.addEventListener("click", async (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const target = getActionTarget(button);
+    if (!target) return;
+    try {
+      await performAction(target);
+    } catch (error) {
+      await handleRequestError(error);
+    }
+  });
+}
 
 // ── 사용자 생성 모달 ──────────────────────────────────────────────────────────
 

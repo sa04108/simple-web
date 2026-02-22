@@ -211,6 +211,21 @@ body::before {
   font-weight: 600;
 }
 
+.gnb-item.admin-menu {
+  color: #d1561f;
+}
+
+.gnb-item.admin-menu:hover {
+  background: rgba(225, 90, 20, 0.08);
+  color: #b33d0b;
+}
+
+.gnb-item.admin-menu.active {
+  background: rgba(225, 90, 20, 0.12);
+  border-color: rgba(225, 90, 20, 0.3);
+  color: #922b04;
+}
+
 .gnb-icon {
   width: 18px;
   height: 18px;
@@ -224,6 +239,48 @@ body::before {
   gap: 10px;
   flex-shrink: 0;
 }
+
+/* ── Logs 새로고침 사이클 버튼 ─────────────────────────────────────────────── */
+
+.logs-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+
+.logs-refresh-btn .refresh-icon {
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-block;
+}
+
+/* Auto 상태 */
+.logs-refresh-btn[data-auto="true"] {
+  color: var(--accent-teal, #2fb4aa);
+  border-color: rgba(47, 180, 170, 0.45);
+  background: rgba(47, 180, 170, 0.07);
+}
+
+.logs-refresh-btn[data-auto="true"] .refresh-icon {
+  animation: logs-btn-spin 1.2s linear infinite;
+}
+
+.logs-refresh-btn[data-auto="true"]:hover {
+  background: rgba(47, 180, 170, 0.14);
+}
+
+@keyframes logs-btn-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 
 .gnb-logout-btn {
   font-size: 0.8rem;

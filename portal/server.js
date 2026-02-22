@@ -130,8 +130,39 @@ app.use(
   createUsersRouter(authService)
 );
 
-// 매칭되지 않은 /apps, /users 하위 경로는 404로 처리한다.
-app.use(["/apps", "/users"], (_req, res) => sendError(res, 404, "Not found"));
+const { exec } = require("node:child_process");
+const { promisify } = require("node:util");
+const execAsync = promisify(exec);
+
+// Admin 전용 Portal 로그 조회 엔드포인트
+app.get(
+  "/admin/portal-logs",
+  authService.requireSessionAuth,
+  authService.requirePaasAdmin,
+  authService.requirePasswordUpdated,
+  async (req, res, next) => {
+    try {
+      const requestedLines = Number.parseInt(String(req.query.lines || "120"), 10);
+      const lines = Number.isFinite(requestedLines) ? Math.max(1, Math.min(1000, requestedLines)) : 120;
+      
+      let logs = "";
+      try {
+        const { stdout, stderr } = await execAsync(`docker logs paas-portal --tail ${lines}`);
+        logs = (stdout || "") + (stderr || "");
+      } catch (err) {
+        logs = (err.stdout || "") + (err.stderr || "");
+        if (!logs) throw err;
+      }
+      
+      return sendOk(res, { lines, logs: logs || "No logs available." });
+    } catch (error) {
+      return next(error);
+    }
+  }
+);
+
+// 매칭되지 않은 /apps, /users, /admin 하위 경로는 404로 처리한다.
+app.use(["/apps", "/users", "/admin"], (_req, res) => sendError(res, 404, "Not found"));
 
 // ── 글로벌 에러 핸들러 ────────────────────────────────────────────────────────
 

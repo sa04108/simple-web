@@ -188,12 +188,18 @@ router.post("/", async (req, res, next) => {
   }
 });
 
-// GET /apps — 현재 로그인 사용자의 앱 목록 조회 (admin 포함 본인 앱만)
+// GET /apps — 앱 목록 조회 (기본: 본인 앱, ?all=true & admin: 전체 앱 조회)
 router.get("/", async (req, res, next) => {
   try {
     const { apps: dockerApps, hasLabelErrors } = await listDockerApps();
     const user = req.auth?.user;
-    const visibleApps = dockerApps.filter((item) => String(item.userid).toLowerCase() === String(user?.username || "").toLowerCase());
+    const fetchAll = req.query.all === "true" && user?.role === ROLE_ADMIN;
+    
+    // fetchAll이 true이면 전체 앱을 보이고, 아니면 본인 앱만 필터링한다.
+    const visibleApps = fetchAll 
+      ? dockerApps 
+      : dockerApps.filter((item) => String(item.userid).toLowerCase() === String(user?.username || "").toLowerCase());
+
     const appDetails = await Promise.all(
       visibleApps.map((appItem) => buildAppInfo(appItem.userid, appItem.appname, appItem))
     );

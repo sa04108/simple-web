@@ -9,7 +9,7 @@
 // ── 기본 API 통신 ─────────────────────────────────────────────────────────────
 
 import { AUTO_REFRESH_MS, el, state } from "./app-state.js";
-import { renderApps, renderUsers } from "./app-render.js";
+import { renderApps, renderUsers, renderAdminApps } from "./app-render.js";
 import { navigateToApp, switchView, updateAuthUi, renderJobIndicator } from "./app-ui.js";
 import {
   canManageApps,
@@ -105,33 +105,85 @@ async function loadUsers() {
 async function refreshDashboardData() {
   await loadApps();
   await loadUsers();
-  if (canManageApps()) {
-    startAutoRefresh();
-  } else {
-    stopAutoRefresh();
+  if (state.user?.role === "admin") {
+    await loadAdminApps();
+    await loadPortalLogs();
   }
 }
 
-// ── 자동 갱신 ─────────────────────────────────────────────────────────────────
+// ── Admin 전용 로딩 ──────────────────────────────────────────────────────────
 
-function stopAutoRefresh() {
-  if (state.refreshTimer) {
-    clearInterval(state.refreshTimer);
-    state.refreshTimer = null;
+async function loadAdminApps() {
+  if (!canManageApps() || state.user?.role !== "admin") return;
+  const data = await apiFetch("/apps?all=true");
+  state.adminApps = data.apps || [];
+  renderAdminApps(state.adminApps);
+}
+
+async function loadPortalLogs() {
+  if (!canManageApps() || state.user?.role !== "admin") return;
+  const rawLines = Number.parseInt(el.adminPortalLogLinesInput.value, 10);
+  const lines    = Number.isFinite(rawLines) ? Math.max(1, Math.min(1000, rawLines)) : 120;
+  
+  try {
+    const data = await apiFetch(`/admin/portal-logs?lines=${lines}`);
+    el.adminPortalLogsOutput.textContent = data.logs || "(empty)";
+  } catch (error) {
+    el.adminPortalLogsOutput.textContent = "Failed to load portal logs.";
   }
 }
 
-function startAutoRefresh() {
-  stopAutoRefresh();
-  if (!canManageApps()) return;
-  state.refreshTimer = setInterval(async () => {
-    try {
-      await loadApps();
-      await loadUsers();
-    } catch (error) {
-      await handleRequestError(error);
-    }
+// ── 로그 패널 자동 갱신 (per-panel) ────────────────────────────────────────────────────
+
+/** App Detail Logs 패널 토ꫨ 새로고침 시작 */
+function startDetailLogsAutoRefresh() {
+  if (state.detailLogsTimer) return; // 이미 실행중
+  state.detailLogsTimer = setInterval(async () => {
+    if (state.activeView !== "app-detail" || state.activeDetailTab !== "logs") return;
+    await loadDetailLogs().catch(() => {});
   }, AUTO_REFRESH_MS);
+  // 버튼에 Auto 상태 표시
+  if (el.detailRefreshLogsBtn) {
+    el.detailRefreshLogsBtn.dataset.auto = "true";
+    el.detailRefreshLogsBtn.querySelector(".refresh-label").textContent = "Auto";
+  }
+}
+
+/** App Detail Logs 패널 토ꫨ 새로고침 중지 */
+function stopDetailLogsAutoRefresh() {
+  if (state.detailLogsTimer) {
+    clearInterval(state.detailLogsTimer);
+    state.detailLogsTimer = null;
+  }
+  if (el.detailRefreshLogsBtn) {
+    el.detailRefreshLogsBtn.dataset.auto = "false";
+    el.detailRefreshLogsBtn.querySelector(".refresh-label").textContent = "새로고침";
+  }
+}
+
+/** Admin Portal Logs 패널 토ꫨ 새로고침 시작 */
+function startAdminLogsAutoRefresh() {
+  if (state.adminLogsTimer) return;
+  state.adminLogsTimer = setInterval(async () => {
+    if (state.activeView !== "admin-dashboard") return;
+    await loadPortalLogs().catch(() => {});
+  }, AUTO_REFRESH_MS);
+  if (el.adminRefreshPortalLogsBtn) {
+    el.adminRefreshPortalLogsBtn.dataset.auto = "true";
+    el.adminRefreshPortalLogsBtn.querySelector(".refresh-label").textContent = "Auto";
+  }
+}
+
+/** Admin Portal Logs 패널 토ꫨ 새로고침 중지 */
+function stopAdminLogsAutoRefresh() {
+  if (state.adminLogsTimer) {
+    clearInterval(state.adminLogsTimer);
+    state.adminLogsTimer = null;
+  }
+  if (el.adminRefreshPortalLogsBtn) {
+    el.adminRefreshPortalLogsBtn.dataset.auto = "false";
+    el.adminRefreshPortalLogsBtn.querySelector(".refresh-label").textContent = "새로고침";
+  }
 }
 
 // ── Job 폴링 ─────────────────────────────────────────────────────────────────
@@ -436,13 +488,25 @@ async function handleCreate(event) {
   }
 }
 
+function stopAutoRefresh() {
+  if (state.refreshTimer) {
+    clearInterval(state.refreshTimer);
+    state.refreshTimer = null;
+  }
+  stopDetailLogsAutoRefresh();
+  stopAdminLogsAutoRefresh();
+}
+
 export {
   apiFetch,
+  cancelJob,
   getActionTarget,
   handleCreate,
   handleRequestError,
   handleSettingsModalError,
   loadApps,
+  loadAdminApps,
+  loadPortalLogs,
   loadAndRecoverJobs,
   loadConfig,
   loadDetailEnv,
@@ -450,12 +514,13 @@ export {
   loadSession,
   loadUsers,
   performAction,
-  pollJob,
   refreshDashboardData,
   retryJob,
-  cancelJob,
   saveDetailEnv,
-  startAutoRefresh,
-  startJobPolling,
+  startDetailLogsAutoRefresh,
+  stopDetailLogsAutoRefresh,
+  startAdminLogsAutoRefresh,
+  stopAdminLogsAutoRefresh,
   stopAutoRefresh,
 };
+

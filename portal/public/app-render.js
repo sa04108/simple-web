@@ -87,6 +87,62 @@ function renderApps(apps) {
   }).join("");
 }
 
+// ── 전체 앱 목록 렌더링 (Admin 전용) ──────────────────────────────────────────
+
+function renderAdminApps(apps) {
+  if (!apps.length) {
+    el.adminEmptyState.style.display = "block";
+    el.adminEmptyState.textContent = "조회된 앱이 없습니다.";
+    el.adminAppsContainer.innerHTML = "";
+    return;
+  }
+
+  el.adminEmptyState.style.display = "none";
+  el.adminAppsContainer.innerHTML = apps.map((appItem) => {
+    const safeUser      = escapeHtml(appItem.userid);
+    const safeApp       = escapeHtml(appItem.appname);
+    const safeRepoUrl   = escapeHtml(appItem.repoUrl || "-");
+    const safeBranch    = escapeHtml(appItem.branch || "main");
+    const rawStatus     = appItem.status || "unknown";
+    const safeStatus    = escapeHtml(rawStatus);
+    const safeCreatedAt = escapeHtml(formatDate(appItem.createdAt));
+    const badgeHtml     = runtimeBadgeHtml(appItem.detectedRuntime);
+
+    let domainHtml;
+    if (appItem.domain) {
+      const url = state.devMode && state.traefikPort
+        ? `http://${appItem.domain}:${state.traefikPort}`
+        : `https://${appItem.domain}`;
+      domainHtml = `<a href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(appItem.domain)}</a>`;
+    } else {
+      domainHtml = "-";
+    }
+
+    return `
+      <article class="app-card" data-userid="${safeUser}" data-appname="${safeApp}">
+        <div class="app-card-head">
+          <div class="app-card-title-row">
+            <button class="app-name-btn" data-action="manage" type="button">${safeUser} / ${safeApp}</button>
+            <span class="status-pill ${statusClass(rawStatus)}">${safeStatus}</span>
+            <button class="action-btn app-manage-btn" data-action="manage" type="button">관리</button>
+          </div>
+          <div class="app-card-badges">
+            ${badgeHtml}
+          </div>
+        </div>
+        <p class="app-domain">${domainHtml}</p>
+        <p class="app-meta">repo: ${safeRepoUrl} | branch: ${safeBranch} | created: ${safeCreatedAt}</p>
+        <div class="app-actions">
+          <button class="action-btn" data-action="start"  type="button">Start</button>
+          <button class="action-btn" data-action="stop"   type="button">Stop</button>
+          <button class="action-btn" data-action="deploy" type="button">Deploy</button>
+          <button class="action-btn danger" data-action="delete" type="button">Delete</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
 // ── 사용자 테이블 렌더링 ──────────────────────────────────────────────────────
 
 function renderUsers(users) {
@@ -209,6 +265,7 @@ function renderJobList(jobs) {
 
 export {
   renderApps,
+  renderAdminApps,
   renderUsers,
   renderJobList,
 };

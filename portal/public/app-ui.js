@@ -51,6 +51,7 @@ function switchView(viewName, { persist = true } = {}) {
   el.viewCreate.hidden    = nextView !== "create";
   el.viewAppDetail.hidden = nextView !== "app-detail";
   el.viewUsers.hidden     = nextView !== "users";
+  if (el.viewAdminDashboard) el.viewAdminDashboard.hidden = nextView !== "admin-dashboard";
 
   el.gnbItems.forEach((item) => {
     // app-detail은 별도 GNB 항목이 없으므로 dashboard를 active로 표시한다.
@@ -251,9 +252,11 @@ function updateAuthUi() {
     el.settingsBtn.hidden = true;
     el.jobListBtn.hidden = true;
     el.gnbUsersBtn.hidden = true;
+    if (el.gnbAdminDashboardBtn) el.gnbAdminDashboardBtn.hidden = true;
     state.users = [];
+    state.adminApps = [];
     renderUsers([]);
-    if (state.activeView === "users" && DEFAULT_VIEW !== "users") {
+    if ((state.activeView === "users" || state.activeView === "admin-dashboard") && DEFAULT_VIEW !== "users") {
       switchView(DEFAULT_VIEW);
     }
     applyAccessState();
@@ -270,8 +273,9 @@ function updateAuthUi() {
   el.settingsBtn.hidden = false;
   el.jobListBtn.hidden = false;
   el.gnbUsersBtn.hidden = !canManageUsers();
+  if (el.gnbAdminDashboardBtn) el.gnbAdminDashboardBtn.hidden = !canManageUsers();
 
-  if (el.gnbUsersBtn.hidden && state.activeView === "users") {
+  if (el.gnbUsersBtn.hidden && (state.activeView === "users" || state.activeView === "admin-dashboard")) {
     switchView(DEFAULT_VIEW);
   }
   if (!canManageUsers()) {

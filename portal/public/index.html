@@ -42,7 +42,15 @@
                     </svg>
                     <span>앱 생성</span>
                 </button>
-                <button id="gnb-users-btn" class="gnb-item" type="button" data-view="users" hidden>
+                <button id="gnb-admin-dashboard-btn" class="gnb-item admin-menu" type="button"
+                    data-view="admin-dashboard" hidden>
+                    <svg class="gnb-icon" viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                            d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
+                    </svg>
+                    <span>Admin 대시보드</span>
+                </button>
+                <button id="gnb-users-btn" class="gnb-item admin-menu" type="button" data-view="users" hidden>
                     <svg class="gnb-icon" viewBox="0 0 24 24" aria-hidden="true">
                         <path
                             d="M16 11c1.66 0 2.99-1.57 2.99-3.5S17.66 4 16 4s-3 1.57-3 3.5S14.34 11 16 11zm-8 0c1.66 0 2.99-1.57 2.99-3.5S9.66 4 8 4 5 5.57 5 7.5 6.34 11 8 11zm0 2c-2.33 0-7 1.17-7 3.5V20h14v-3.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.94 1.97 3.45V20h6v-3.5c0-2.33-4.67-3.5-7-3.5z" />
@@ -177,7 +185,10 @@
                         <div class="logs-controls">
                             <input id="detail-log-lines-input" type="number" class="log-lines-input" min="1" max="1000"
                                 value="120" aria-label="로그 조회 라인 수" title="로그 조회 라인 수" />
-                            <button id="detail-refresh-logs-btn" class="ghost-btn" type="button">새로고침</button>
+                            <button id="detail-refresh-logs-btn" class="ghost-btn logs-refresh-btn" type="button"
+                                data-auto="false">
+                                <span class="refresh-icon">↻</span><span class="refresh-label">새로고침</span>
+                            </button>
                         </div>
                     </div>
                     <p id="detail-logs-title" class="detail-logs-title">앱을 선택하면 로그가 표시됩니다.</p>
@@ -229,6 +240,36 @@
                             <span>앱 삭제 시 data 폴더 보존</span>
                         </label>
                     </div>
+                </section>
+            </section>
+
+            <!-- ── Admin 대시보드 ── -->
+            <section id="view-admin-dashboard" class="view-section" hidden>
+                <header class="view-header">
+                    <h2>Admin 대시보드</h2>
+                    <p class="view-subtitle">모든 유저의 배포된 앱 현황과 시스템 로그를 확인합니다.</p>
+                </header>
+                <section class="panel app-panel" style="margin-bottom: 24px;">
+                    <div class="panel-head">
+                        <h3>전체 앱 목록</h3>
+                        <button id="admin-refresh-apps-btn" class="ghost-btn" type="button">새로고침</button>
+                    </div>
+                    <p id="admin-empty-state" class="empty-state">조회된 앱이 없습니다.</p>
+                    <div id="admin-apps-container" class="apps-container"></div>
+                </section>
+                <section class="panel detail-panel" style="margin-top: 2rem;">
+                    <div class="panel-head logs-head">
+                        <h3>Portal 시스템 로그</h3>
+                        <div class="logs-controls">
+                            <input id="admin-portal-log-lines-input" type="number" class="log-lines-input" min="1"
+                                max="1000" value="120" aria-label="로그 조회 라인 수" title="로그 조회 라인 수" />
+                            <button id="admin-refresh-portal-logs-btn" class="ghost-btn logs-refresh-btn" type="button"
+                                data-auto="false">
+                                <span class="refresh-icon">↻</span><span class="refresh-label">새로고침</span>
+                            </button>
+                        </div>
+                    </div>
+                    <pre id="admin-portal-logs-output" class="logs-output">Loading...</pre>
                 </section>
             </section>
 

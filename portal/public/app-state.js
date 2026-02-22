@@ -9,9 +9,9 @@
 
 // ── 자동 갱신 주기 · 뷰 상수 ────────────────────────────────────────────────
 
-export const AUTO_REFRESH_MS = 30000;
+export const AUTO_REFRESH_MS = 5000;
 export const UI_STATE_STORAGE_KEY = "portal.uiState";
-export const AVAILABLE_VIEWS = ["dashboard", "create", "app-detail", "users"];
+export const AVAILABLE_VIEWS = ["dashboard", "create", "app-detail", "users", "admin-dashboard"];
 export const AVAILABLE_DETAIL_TABS = ["logs", "exec", "settings"];
 export const DEFAULT_VIEW = "dashboard";
 export const DEFAULT_DETAIL_TAB = "logs";
@@ -29,6 +29,7 @@ export const state = {
   devMode:     false,
   traefikPort: null,
   apps:    [],
+  adminApps: [],
   users:   [],
   jobs:    [],           // 진행중 / 최근 완료 job 목록
   jobPollers: new Map(), // Map<jobId, intervalId> — 폴링 핸들 추적
@@ -36,6 +37,8 @@ export const state = {
   pendingPromoteUser: null,
   user:    null,
   refreshTimer:    null,
+  detailLogsTimer: null,   // App Detail 로그 자동 갱신
+  adminLogsTimer:  null,   // Admin Portal 로그 자동 갱신
   activeView:      DEFAULT_VIEW,
   activeDetailTab: DEFAULT_DETAIL_TAB,
   selectedApp:     null,
@@ -52,6 +55,7 @@ export const el = {
   gnbOverlay:    document.getElementById("gnb-mobile-overlay"),
   gnbItems:      Array.from(document.querySelectorAll(".gnb-item")),
   gnbUsersBtn:   document.getElementById("gnb-users-btn"),
+  gnbAdminDashboardBtn: document.getElementById("gnb-admin-dashboard-btn"),
   mobileMenuBtn: document.getElementById("mobile-menu-btn"),
 
   // 뷰 패널
@@ -59,6 +63,7 @@ export const el = {
   viewCreate:    document.getElementById("view-create"),
   viewAppDetail: document.getElementById("view-app-detail"),
   viewUsers:     document.getElementById("view-users"),
+  viewAdminDashboard: document.getElementById("view-admin-dashboard"),
 
   // 공통 UI
   statusBanner: document.getElementById("status-banner"),
@@ -158,6 +163,14 @@ export const el = {
   closeJobListBtn:        document.getElementById("close-job-list-btn"),
   jobListTbody:           document.getElementById("job-list-tbody"),
   jobListEmpty:           document.getElementById("job-list-empty"),
+
+  // Admin 대시보드
+  adminRefreshAppsBtn:    document.getElementById("admin-refresh-apps-btn"),
+  adminAppsContainer:     document.getElementById("admin-apps-container"),
+  adminEmptyState:        document.getElementById("admin-empty-state"),
+  adminPortalLogLinesInput: document.getElementById("admin-portal-log-lines-input"),
+  adminRefreshPortalLogsBtn: document.getElementById("admin-refresh-portal-logs-btn"),
+  adminPortalLogsOutput:  document.getElementById("admin-portal-logs-output"),
 };
 
 // 각 모달의 백드롭 클릭 시작 여부를 추적한다.
