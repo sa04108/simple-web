@@ -1015,6 +1015,10 @@ code {
   min-width: 0;
   padding-right: 68px;
   /* 관리 버튼 너비(~52px) + 여백(16px) */
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .app-name {
@@ -1495,6 +1499,7 @@ code {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
+  margin-top: 10px;
 }
 
 .app-manage-btn {

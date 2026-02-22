@@ -67,11 +67,11 @@ function renderApps(apps) {
         <div class="app-card-head">
           <div class="app-card-title-row">
             <button class="app-name-btn" data-action="manage" type="button" ${actionsDisabled}>${safeUser} / ${safeApp}</button>
+            <span class="status-pill ${statusClass(rawStatus)}">${safeStatus}</span>
             <button class="action-btn app-manage-btn" data-action="manage" type="button" ${actionsDisabled}>관리</button>
           </div>
           <div class="app-card-badges">
             ${badgeHtml}
-            <span class="status-pill ${statusClass(rawStatus)}">${safeStatus}</span>
           </div>
         </div>
         <p class="app-domain">${domainHtml}</p>
