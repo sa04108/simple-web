@@ -171,12 +171,11 @@
                             aria-controls="detail-panel-logs">Logs</button>
                         <button id="detail-tab-btn-exec" class="detail-tab-btn" type="button" data-detail-tab="exec"
                             role="tab" aria-selected="false" aria-controls="detail-panel-exec">Exec</button>
+                        <button id="detail-tab-btn-domains" class="detail-tab-btn" type="button" data-detail-tab="domains" role="tab"
+                            aria-selected="false" aria-controls="detail-panel-domains">Domains</button>
                         <button id="detail-tab-btn-settings" class="detail-tab-btn" type="button"
                             data-detail-tab="settings" role="tab" aria-selected="false"
                             aria-controls="detail-panel-settings">Settings</button>
-                        <button id="detail-tab-btn-domains" class="detail-tab-btn" type="button"
-                            data-detail-tab="domains" role="tab" aria-selected="false"
-                            aria-controls="detail-panel-domains">Domains</button>
                     </div>
                 </nav>
 
@@ -217,6 +216,30 @@
                     </div>
                 </section>
 
+                <!-- Domains panel -->
+                <section id="detail-panel-domains" class="panel detail-panel" role="tabpanel" aria-labelledby="detail-tab-btn-domains"
+                    hidden>
+                    <div class="panel-head">
+                        <h3>Custom Domains</h3>
+                        <button id="detail-add-domain-btn" class="ghost-btn" type="button">+ Add Domain</button>
+                    </div>
+                    <div class="users-table-wrap domains-table-wrap" id="domains-table-wrap" hidden>
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Domain</th>
+                                    <th scope="col">Target</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="domains-table-body"></tbody>
+                        </table>
+                    </div>
+                    <p id="domains-empty-state" class="empty-state" hidden>커스텀 도메인이 없습니다. 도메인을 추가하세요.</p>
+                </section>
+
                 <!-- Settings panel -->
                 <section id="detail-panel-settings" class="panel detail-panel" role="tabpanel"
                     aria-labelledby="detail-tab-btn-settings" hidden>
@@ -243,30 +266,6 @@
                             <span>앱 삭제 시 data 폴더 보존</span>
                         </label>
                     </div>
-                </section>
-
-                <!-- Domains panel -->
-                <section id="detail-panel-domains" class="panel detail-panel" role="tabpanel"
-                    aria-labelledby="detail-tab-btn-domains" hidden>
-                    <div class="panel-head">
-                        <h3>Custom Domains</h3>
-                        <button id="detail-add-domain-btn" class="ghost-btn" type="button">+ Add Domain</button>
-                    </div>
-                    <div class="users-table-wrap domains-table-wrap" id="domains-table-wrap" hidden>
-                        <table class="users-table">
-                            <thead>
-                                <tr>
-                                    <th scope="col">Type</th>
-                                    <th scope="col">Domain</th>
-                                    <th scope="col">Target</th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="domains-table-body"></tbody>
-                        </table>
-                    </div>
-                    <p id="domains-empty-state" class="empty-state" hidden>커스텀 도메인이 없습니다. 도메인을 추가하세요.</p>
                 </section>
             </section>
 
