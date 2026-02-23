@@ -174,6 +174,9 @@
                         <button id="detail-tab-btn-settings" class="detail-tab-btn" type="button"
                             data-detail-tab="settings" role="tab" aria-selected="false"
                             aria-controls="detail-panel-settings">Settings</button>
+                        <button id="detail-tab-btn-domains" class="detail-tab-btn" type="button"
+                            data-detail-tab="domains" role="tab" aria-selected="false"
+                            aria-controls="detail-panel-domains">Domains</button>
                     </div>
                 </nav>
 
@@ -240,6 +243,30 @@
                             <span>앱 삭제 시 data 폴더 보존</span>
                         </label>
                     </div>
+                </section>
+
+                <!-- Domains panel -->
+                <section id="detail-panel-domains" class="panel detail-panel" role="tabpanel"
+                    aria-labelledby="detail-tab-btn-domains" hidden>
+                    <div class="panel-head">
+                        <h3>Custom Domains</h3>
+                        <button id="detail-add-domain-btn" class="ghost-btn" type="button">+ Add Domain</button>
+                    </div>
+                    <div class="users-table-wrap domains-table-wrap" id="domains-table-wrap" hidden>
+                        <table class="users-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Type</th>
+                                    <th scope="col">Domain</th>
+                                    <th scope="col">Target</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="domains-table-body"></tbody>
+                        </table>
+                    </div>
+                    <p id="domains-empty-state" class="empty-state" hidden>커스텀 도메인이 없습니다. 도메인을 추가하세요.</p>
                 </section>
             </section>
 
@@ -326,6 +353,34 @@
     </div>
 
     <div id="gnb-mobile-overlay" class="gnb-mobile-overlay" aria-hidden="true"></div>
+
+    <!-- ── 도메인 추가 모달 ── -->
+    <div id="add-domain-modal" class="modal-backdrop" hidden>
+        <section class="modal-card panel-inset" role="dialog" aria-modal="true"
+            aria-labelledby="add-domain-title">
+            <div class="modal-head">
+                <h2 id="add-domain-title">도메인 추가</h2>
+                <button id="close-add-domain-btn" class="icon-btn close-icon-btn" type="button"
+                    aria-label="도메인 추가 닫기">
+                    <span aria-hidden="true">x</span>
+                </button>
+            </div>
+            <p class="modal-description">
+                연결할 도메인을 입력하세요. (예: my.domain.com)<br>
+                추가 후 CNAME 레코드를 설정하면 Verify 버튼으로 인증할 수 있습니다.
+            </p>
+            <p id="add-domain-error" class="modal-error" role="alert" hidden></p>
+            <form id="add-domain-form" novalidate>
+                <label for="add-domain-input">Domain</label>
+                <input id="add-domain-input" type="text" placeholder="my.domain.com"
+                    autocomplete="off" spellcheck="false" required />
+                <div class="modal-actions">
+                    <button id="cancel-add-domain-btn" class="ghost-btn" type="button">취소</button>
+                    <button id="submit-add-domain-btn" class="primary-btn" type="submit">추가</button>
+                </div>
+            </form>
+        </section>
+    </div>
 
     <!-- ── 비밀번호 설정 모달 ── -->
     <div id="settings-modal" class="modal-backdrop" hidden>

@@ -2019,3 +2019,94 @@ code {
 .job-retry-all-btn:hover {
   background: rgba(var(--accent-blue-rgb), 0.2);
 }
+
+/* ── Custom Domains ───────────────────────────────────────────────────────── */
+
+.domains-table-wrap {
+  margin-top: 8px;
+}
+
+.domains-cname-hint {
+  margin: 8px 0 12px;
+  font-size: 0.84rem;
+  color: var(--ink-subtle);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.domains-cname-value {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.82rem;
+  background: rgba(25, 68, 108, 0.06);
+  padding: 2px 8px;
+  border-radius: 5px;
+  color: var(--ink-main);
+  user-select: all;
+}
+
+.domains-copy-btn {
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.domain-type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: "IBM Plex Mono", monospace;
+  background: rgba(42, 134, 241, 0.1);
+  border: 1px solid rgba(42, 134, 241, 0.22);
+  color: #1a5fa8;
+  letter-spacing: 0.04em;
+}
+
+.domain-name,
+.domain-cname-target {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.81rem;
+  background: rgba(25, 68, 108, 0.06);
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: var(--ink-main);
+}
+
+.domain-status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.domain-status-active {
+  background: rgba(15, 142, 115, 0.12);
+  border: 1px solid rgba(15, 142, 115, 0.26);
+  color: #0a6e59;
+}
+
+.domain-status-pending {
+  background: rgba(181, 130, 18, 0.14);
+  border: 1px solid rgba(181, 130, 18, 0.28);
+  color: #7a550b;
+}
+
+.domain-status-error {
+  background: rgba(var(--danger-rgb), 0.12);
+  border: 1px solid rgba(var(--danger-rgb), 0.28);
+  color: #8c2b2b;
+}
+
+.danger-ghost-btn {
+  color: var(--danger);
+  border-color: rgba(var(--danger-rgb), 0.4);
+}
+
+.danger-ghost-btn:hover {
+  background: rgba(var(--danger-rgb), 0.08);
+  border-color: rgba(var(--danger-rgb), 0.6);
+}

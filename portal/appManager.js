@@ -375,7 +375,7 @@ async function listDockerApps() {
     const { stdout } = await runCommand("docker", [
       "ps", "-a",
       "--filter", "label=paas.type=user-app",
-      "--format", "{{.Label \"paas.userid\"}}\t{{.Label \"paas.appname\"}}\t{{.Names}}\t{{.Status}}\t{{.Label \"paas.domain\"}}\t{{.CreatedAt}}",
+      "--format", "{{.Label \"paas.userid\"}}\t{{.Label \"paas.appname\"}}\t{{.Names}}\t{{.Status}}\t{{.Label \"paas.domain\"}}\t{{.CreatedAt}}\t{{.Label \"paas.port\"}}",
     ]);
 
     if (stdout) {
@@ -387,6 +387,7 @@ async function listDockerApps() {
         const rawStatus = parts[3]?.trim() || "unknown";
         const domain = parts[4]?.trim() || "";
         const createdAt = parts[5]?.trim() || "";
+        const port = Number.parseInt(parts[6]?.trim(), 10) || 5000;
 
         if (!uid || !appn) {
           result.hasLabelErrors = true;
@@ -399,6 +400,7 @@ async function listDockerApps() {
           containerName,
           rawStatus,
           domain,
+          port,
           createdAt,
         });
       }

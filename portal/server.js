@@ -10,8 +10,10 @@
 //     utils.js       — AppError, sendOk/sendError 등 공통 헬퍼
 //     authService.js — 인증/세션/사용자 관리
 //     appManager.js  — 앱 파일시스템 및 Docker 관리
-//     routes/apps.js — /apps 라우트 핸들러
-//     routes/users.js — /users 라우트 핸들러 팩토리
+//     routes/apps.js     — /apps 라우트 핸들러
+//     routes/users.js    — /users 라우트 핸들러 팩토리
+//     routes/domains.js  — /apps/:userid/:appname/domains 라우트 핸들러
+//     domainManager.js   — 커스텀 도메인 CRUD + Traefik 동적 설정 관리
 // =============================================================================
 "use strict";
 const path = require("node:path");
@@ -22,10 +24,12 @@ const { AppError, sendOk, sendError } = require("./utils");
 const { config, envFilePath, IS_DEV } = require("./config");
 const { ensureBaseDirectories } = require("./appManager");
 const appsRouter = require("./routes/apps");
-const { executeJob } = require("./routes/apps");
+const { executeJob, setOnAppDeletedHook, setOnAppDeployedHook } = require("./routes/apps");
 const createUsersRouter = require("./routes/users");
+const createDomainsRouter = require("./routes/domains");
 const jobsRouter = require("./routes/jobs");
 const jobStore = require("./jobStore");
+const { createDomainManager } = require("./domainManager");
 
 // ── authService 초기화 ────────────────────────────────────────────────────────
 
@@ -187,8 +191,8 @@ app.get(
   }
 );
 
-// 매칭되지 않은 /apps, /users, /admin 하위 경로는 404로 처리한다.
-app.use(["/apps", "/users", "/admin"], (_req, res) => sendError(res, 404, "Not found"));
+// 매칭되지 않은 /apps, /users, /admin 하위 경로 catch-all은
+// start() 내부에서 domains 라우터 등록 이후에 추가된다. (미들웨어 순서 보장)
 
 // ── 글로벌 에러 핸들러 ────────────────────────────────────────────────────────
 
@@ -212,6 +216,29 @@ app.use((err, _req, res, _next) => {
 async function start() {
   await ensureBaseDirectories();
   await authService.init();
+
+  // domainManager 초기화 (authService DB가 열린 뒤에 prepared statements 사용)
+  const domainManager = createDomainManager({ statements: authService.getStatements() });
+  await domainManager.init();
+
+  // 앱 삭제 시 커스텀 도메인 정리 훅
+  setOnAppDeletedHook((userid, appname) => domainManager.removeAppDomains(userid, appname));
+  // 재배포 완료 시 포트 갱신 훅
+  setOnAppDeployedHook((userid, appname, port) => domainManager.refreshAppPort(userid, appname, port));
+
+  // 커스텀 도메인 라우터: /apps/:userid/:appname/domains
+  // appsRouter와 별도 마운트 (mergeParams 활용)
+  // 주의: catch-all보다 반드시 먼저 등록해야 한다
+  app.use(
+    "/apps/:userid/:appname/domains",
+    authService.requireSessionAuth,
+    authService.requirePasswordUpdated,
+    createDomainsRouter(domainManager)
+  );
+
+  // 매칭되지 않은 /apps, /users, /admin 하위 경로는 404로 처리한다.
+  // domains 라우터 등록 이후에 위치해야 순서가 보장된다.
+  app.use(["/apps", "/users", "/admin"], (_req, res) => sendError(res, 404, "Not found"));
 
   // jobStore 초기화 및 서버 재시작 복원
   jobStore.init(config.PORTAL_DB_PATH);

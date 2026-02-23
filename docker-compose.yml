@@ -9,11 +9,14 @@ services:
       - "--providers.docker.constraints=Label(`paas.type`, `user-app`)"
       - "--providers.docker.defaultRule=Host(`{{ index .Labels \"paas.domain\" }}`)"
       - "--providers.docker.network=${APP_NETWORK:-paas-app}"
+      - "--providers.file.directory=/traefik-dynamic"
+      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
     ports:
       - "18080:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./portal-data/traefik-dynamic:/traefik-dynamic:ro
     networks:
       - proxy
       - paas-app

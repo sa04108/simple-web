@@ -263,9 +263,56 @@ function renderJobList(jobs) {
   }).join("");
 }
 
+// ── 커스텀 도메인 테이블 렌더링 ──────────────────────────────────────────────
+
+function renderDomains(domains) {
+  if (!domains.length) {
+    el.domainsTableWrap.hidden = true;
+    el.domainsEmptyState.hidden = false;
+    return;
+  }
+
+  el.domainsEmptyState.hidden = true;
+  el.domainsTableWrap.hidden = false;
+
+  el.domainsTableBody.innerHTML = domains.map((d) => {
+    const safeDomain = escapeHtml(d.domain);
+    const safeCname  = escapeHtml(d.cnameTarget || "");
+    const status     = d.status || "pending";
+
+    const badgeClass =
+      status === "active"  ? "domain-status-active"  :
+      status === "error"   ? "domain-status-error"   :
+                             "domain-status-pending";
+
+    const statusLabel =
+      status === "active"  ? "Active"  :
+      status === "error"   ? "Error"   :
+                             "Pending";
+
+    return `
+      <tr>
+        <td><span class="domain-type-badge">CNAME</span></td>
+        <td><code class="domain-name">${safeDomain}</code></td>
+        <td><code class="domain-cname-target">${safeCname}</code></td>
+        <td><span class="domain-status-badge ${badgeClass}">${statusLabel}</span></td>
+        <td>
+          <div class="users-action-group">
+            <button class="ghost-btn" data-action="verify-domain"
+              data-id="${d.id}" type="button">Verify</button>
+            <button class="ghost-btn danger-ghost-btn" data-action="remove-domain"
+              data-id="${d.id}" type="button">Remove</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
 export {
   renderApps,
   renderAdminApps,
+  renderDomains,
   renderUsers,
   renderJobList,
 };

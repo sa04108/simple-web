@@ -9,7 +9,7 @@
 // ── 기본 API 통신 ─────────────────────────────────────────────────────────────
 
 import { AUTO_REFRESH_MS, el, state } from "./app-state.js";
-import { renderApps, renderUsers, renderAdminApps } from "./app-render.js";
+import { renderApps, renderUsers, renderAdminApps, renderDomains } from "./app-render.js";
 import { navigateToApp, switchView, updateAuthUi, renderJobIndicator } from "./app-ui.js";
 import {
   canManageApps,
@@ -472,6 +472,40 @@ async function handleCreate(event) {
   }
 }
 
+// ── 커스텀 도메인 ─────────────────────────────────────────────────────────────
+
+async function loadDetailDomains() {
+  if (!state.selectedApp) return;
+  const { userid, appname } = state.selectedApp;
+  const data = await apiFetch(`/apps/${userid}/${appname}/domains`);
+  renderDomains(data.domains || []);
+}
+
+async function addCustomDomain(domain) {
+  if (!state.selectedApp) return;
+  const { userid, appname } = state.selectedApp;
+  const data = await apiFetch(`/apps/${userid}/${appname}/domains`, {
+    method: "POST",
+    body: JSON.stringify({ domain }),
+  });
+  return data.domain;
+}
+
+async function removeCustomDomain(id) {
+  if (!state.selectedApp) return;
+  const { userid, appname } = state.selectedApp;
+  await apiFetch(`/apps/${userid}/${appname}/domains/${id}`, { method: "DELETE" });
+}
+
+async function verifyCustomDomain(id) {
+  if (!state.selectedApp) return;
+  const { userid, appname } = state.selectedApp;
+  const data = await apiFetch(`/apps/${userid}/${appname}/domains/${id}/verify`, {
+    method: "POST",
+  });
+  return data.domain;
+}
+
 function stopAutoRefresh() {
   if (state.refreshTimer) {
     clearInterval(state.refreshTimer);
@@ -482,6 +516,7 @@ function stopAutoRefresh() {
 }
 
 export {
+  addCustomDomain,
   apiFetch,
   cancelJob,
   getActionTarget,
@@ -490,6 +525,7 @@ export {
   handleSettingsModalError,
   loadApps,
   loadAdminApps,
+  loadDetailDomains,
   loadPortalLogs,
   loadAndRecoverJobs,
   loadConfig,
@@ -499,6 +535,7 @@ export {
   loadUsers,
   performAction,
   refreshDashboardData,
+  removeCustomDomain,
   retryJob,
   saveDetailEnv,
   startDetailLogsAutoRefresh,
@@ -506,5 +543,6 @@ export {
   startAdminLogsAutoRefresh,
   stopAdminLogsAutoRefresh,
   stopAutoRefresh,
+  verifyCustomDomain,
 };
 

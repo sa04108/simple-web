@@ -27,6 +27,7 @@ import {
   isLoggedIn,
   isPasswordLocked,
   persistUiState,
+  setAddDomainError,
   setCreateUserError,
   setDeleteUserError,
   setPromoteAdminError,
@@ -37,6 +38,7 @@ import { renderUsers, renderJobList } from "./app-render.js";
 const uiHandlers = {
   loadDetailEnv: async () => {},
   loadDetailLogs: async () => {},
+  loadDetailDomains: async () => {},
   handleRequestError: async () => {},
   resetExecForApp: () => {},
 };
@@ -90,6 +92,7 @@ function switchDetailTab(tabName) {
   el.detailPanelLogs.hidden     = nextTab !== "logs";
   el.detailPanelExec.hidden     = nextTab !== "exec";
   el.detailPanelSettings.hidden = nextTab !== "settings";
+  el.detailPanelDomains.hidden  = nextTab !== "domains";
 }
 
 // ── Admin 대시보드 서브탭 ──────────────────────────────────────────────────────
@@ -124,6 +127,7 @@ async function navigateToApp(userid, appname) {
     await uiHandlers.handleRequestError(error);
   }
   uiHandlers.loadDetailEnv().catch(() => {});
+  uiHandlers.loadDetailDomains().catch(() => {});
 }
 
 // ── 모달 유틸 ─────────────────────────────────────────────────────────────────
@@ -135,8 +139,28 @@ function syncModalOpenState() {
     !el.createUserModal.hidden ||
     !el.deleteUserModal.hidden ||
     !el.promoteAdminModal.hidden ||
-    !el.jobListModal.hidden;
+    !el.jobListModal.hidden    ||
+    !el.addDomainModal.hidden;
   document.body.classList.toggle("modal-open", hasOpenModal);
+}
+
+// ── 도메인 추가 모달 ──────────────────────────────────────────────────────────
+
+function openAddDomainModal() {
+  modalBackdropState.addDomain = false;
+  setAddDomainError("");
+  el.addDomainForm.reset();
+  el.addDomainModal.hidden = false;
+  syncModalOpenState();
+  el.addDomainInput.focus();
+}
+
+function closeAddDomainModal() {
+  modalBackdropState.addDomain = false;
+  el.addDomainModal.hidden = true;
+  setAddDomainError("");
+  el.addDomainForm.reset();
+  syncModalOpenState();
 }
 
 // 모달 배경(backdrop) 클릭으로 닫기 기능을 바인딩한다.
@@ -363,6 +387,7 @@ function renderJobIndicator(jobs) {
 
 export {
   bindBackdropClose,
+  closeAddDomainModal,
   closeCreateUserModal,
   closeDeleteUserModal,
   closeMobileMenu,
@@ -371,6 +396,7 @@ export {
   closeJobListModal,
   configureUiHandlers,
   navigateToApp,
+  openAddDomainModal,
   openCreateUserModal,
   openDeleteUserModal,
   openPromoteAdminModal,

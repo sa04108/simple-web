@@ -108,6 +108,7 @@ function buildCompose({ userid, appname, appDir }) {
     `      - ${JSON.stringify(`paas.userid=${userid}`)}`,
     `      - ${JSON.stringify(`paas.appname=${appname}`)}`,
     `      - ${JSON.stringify(`paas.domain=${domain}`)}`,
+    `      - ${JSON.stringify(`paas.port=${containerPort}`)}`,
     '    logging:',
     '      driver: json-file',
     '      options:',

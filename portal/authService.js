@@ -110,9 +110,13 @@ function createAuthService(options) {
   const config = {
     dbPath: options.dbPath,
     sessionCookieName: options.sessionCookieName || "portal_session",
-    sessionTtlHours: Number(options.sessionTtlHours) > 0 ? Number(options.sessionTtlHours) : 168,
+    sessionTtlHours:
+      Number(options.sessionTtlHours) > 0
+        ? Number(options.sessionTtlHours)
+        : 168,
     cookieSecure: Boolean(options.cookieSecure),
-    bcryptRounds: Number(options.bcryptRounds) > 0 ? Number(options.bcryptRounds) : 10,
+    bcryptRounds:
+      Number(options.bcryptRounds) > 0 ? Number(options.bcryptRounds) : 10,
     isDev: Boolean(options.isDev),
   };
 
@@ -132,7 +136,9 @@ function createAuthService(options) {
       id: Number(row.id),
       username: String(row.username),
       role: String(row.role || ROLE_ADMIN),
-      mustChangePassword: config.isDev ? false : normalizeBoolean(row.mustChangePassword, false)
+      mustChangePassword: config.isDev
+        ? false
+        : normalizeBoolean(row.mustChangePassword, false),
     };
   }
 
@@ -144,7 +150,7 @@ function createAuthService(options) {
       role,
       isAdmin: role === ROLE_ADMIN,
       createdAt: row.createdAt || null,
-      lastAccessAt: row.lastAccessAt || null
+      lastAccessAt: row.lastAccessAt || null,
     };
   }
 
@@ -154,7 +160,7 @@ function createAuthService(options) {
       sameSite: "lax",
       secure: config.cookieSecure,
       path: "/",
-      expires: new Date(expiresAt)
+      expires: new Date(expiresAt),
     });
   }
 
@@ -163,7 +169,7 @@ function createAuthService(options) {
       httpOnly: true,
       sameSite: "lax",
       secure: config.cookieSecure,
-      path: "/"
+      path: "/",
     });
   }
 
@@ -171,13 +177,20 @@ function createAuthService(options) {
     const secret = crypto.randomBytes(32).toString("base64url");
     const tokenHash = hashSecret(secret);
     const createdAt = nowIso();
-    const expiresAt = new Date(Date.now() + config.sessionTtlHours * 60 * 60 * 1000).toISOString();
-    const result = statements.insertSession.run(Number(userId), tokenHash, createdAt, expiresAt);
+    const expiresAt = new Date(
+      Date.now() + config.sessionTtlHours * 60 * 60 * 1000,
+    ).toISOString();
+    const result = statements.insertSession.run(
+      Number(userId),
+      tokenHash,
+      createdAt,
+      expiresAt,
+    );
     const sessionId = Number(result.lastInsertRowid);
     return {
       token: `${SESSION_TOKEN_PREFIX}.${sessionId}.${secret}`,
       sessionId,
-      expiresAt
+      expiresAt,
     };
   }
 
@@ -219,7 +232,7 @@ function createAuthService(options) {
       method: "session",
       user: toPublicUser(row),
       sessionId: parsed.id,
-      sessionExpiresAt: row.expiresAt
+      sessionExpiresAt: row.expiresAt,
     };
   }
 
@@ -267,7 +280,10 @@ function createAuthService(options) {
     const role = isAdmin ? ROLE_ADMIN : ROLE_USER;
 
     if (!USERNAME_REGEX.test(username)) {
-      throw new AppError(400, "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/");
+      throw new AppError(
+        400,
+        "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/",
+      );
     }
     if (password.length < 8) {
       throw new AppError(400, "password must be at least 8 characters");
@@ -287,7 +303,7 @@ function createAuthService(options) {
         role,
         1,
         createdAt,
-        createdAt
+        createdAt,
       );
       const userId = Number(result.lastInsertRowid);
       const createdUser = statements.selectUserById.get(userId);
@@ -302,7 +318,10 @@ function createAuthService(options) {
 
   function deleteUser(payload) {
     const actorUserId = Number.parseInt(String(payload?.actorUserId || ""), 10);
-    const targetUserId = Number.parseInt(String(payload?.targetUserId || ""), 10);
+    const targetUserId = Number.parseInt(
+      String(payload?.targetUserId || ""),
+      10,
+    );
     const currentPassword = String(payload?.currentPassword || "");
 
     if (!Number.isInteger(actorUserId) || actorUserId <= 0) {
@@ -339,7 +358,7 @@ function createAuthService(options) {
     return {
       id: Number(target.id),
       username: String(target.username || ""),
-      deleted: true
+      deleted: true,
     };
   }
 
@@ -370,7 +389,10 @@ function createAuthService(options) {
         const username = String(req.body?.username || "").trim();
         const password = String(req.body?.password || "");
         if (!USERNAME_REGEX.test(username)) {
-          throw new AppError(400, "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/");
+          throw new AppError(
+            400,
+            "Invalid username. Expected /^[a-z][a-z0-9]{2,19}$/",
+          );
         }
         if (!password) {
           throw new AppError(400, "Password is required");
@@ -385,7 +407,7 @@ function createAuthService(options) {
         setSessionCookie(res, session.token, session.expiresAt);
         return sendOk(res, {
           user: toPublicUser(user),
-          sessionExpiresAt: session.expiresAt
+          sessionExpiresAt: session.expiresAt,
         });
       } catch (error) {
         return next(error);
@@ -395,8 +417,8 @@ function createAuthService(options) {
     app.get("/auth/me", requireSessionAuth, (req, res) =>
       sendOk(res, {
         user: req.auth.user,
-        sessionExpiresAt: req.auth.sessionExpiresAt
-      })
+        sessionExpiresAt: req.auth.sessionExpiresAt,
+      }),
     );
 
     app.post("/auth/logout", (req, res) => {
@@ -414,7 +436,10 @@ function createAuthService(options) {
         const currentPassword = String(req.body?.currentPassword || "");
         const newPassword = String(req.body?.newPassword || "");
         if (!currentPassword || !newPassword) {
-          throw new AppError(400, "currentPassword and newPassword are required");
+          throw new AppError(
+            400,
+            "currentPassword and newPassword are required",
+          );
         }
         if (newPassword.length < 8) {
           throw new AppError(400, "newPassword must be at least 8 characters");
@@ -429,7 +454,10 @@ function createAuthService(options) {
           throw new AppError(401, "Current password is incorrect");
         }
         if (bcrypt.compareSync(newPassword, currentUser.passwordHash)) {
-          throw new AppError(400, "newPassword must be different from current password");
+          throw new AppError(
+            400,
+            "newPassword must be different from current password",
+          );
         }
 
         const updatedAt = nowIso();
@@ -442,7 +470,7 @@ function createAuthService(options) {
         const updatedUser = statements.selectUserById.get(userId);
         return sendOk(res, {
           user: toPublicUser(updatedUser),
-          sessionExpiresAt: session.expiresAt
+          sessionExpiresAt: session.expiresAt,
         });
       } catch (error) {
         return next(error);
@@ -478,6 +506,20 @@ function createAuthService(options) {
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
       );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_token_hash ON sessions(token_hash);
+      CREATE TABLE IF NOT EXISTS custom_domains (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        userid      TEXT    NOT NULL,
+        appname     TEXT    NOT NULL,
+        domain      TEXT    NOT NULL UNIQUE,
+        target TEXT   NOT NULL,
+        port        INTEGER NOT NULL DEFAULT 5000,
+        status      TEXT    NOT NULL DEFAULT 'pending',
+        verified_at TEXT,
+        created_at  TEXT    NOT NULL,
+        updated_at  TEXT    NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_custom_domains_app
+        ON custom_domains(userid, appname);
     `);
 
     statements.selectUserById = db.prepare(`
@@ -586,11 +628,60 @@ function createAuthService(options) {
       UPDATE users SET role = '${ROLE_ADMIN}', updated_at = ? WHERE id = ?
     `);
 
+    // ── custom_domains prepared statements ──────────────────────────────────
+    statements.insertCustomDomain = db.prepare(`
+      INSERT INTO custom_domains (userid, appname, domain, target, port, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+    `);
+    statements.selectCustomDomainsByApp = db.prepare(`
+      SELECT id, userid, appname, domain, target, port,
+             status, verified_at AS verifiedAt, created_at AS createdAt, updated_at AS updatedAt
+      FROM custom_domains
+      WHERE userid = ? AND appname = ?
+      ORDER BY created_at ASC
+    `);
+    statements.selectCustomDomainById = db.prepare(`
+      SELECT id, userid, appname, domain, target, port,
+             status, verified_at AS verifiedAt, created_at AS createdAt, updated_at AS updatedAt
+      FROM custom_domains WHERE id = ?
+    `);
+    statements.selectCustomDomainByDomain = db.prepare(`
+      SELECT id, userid, appname, domain, target, port,
+             status, verified_at AS verifiedAt, created_at AS createdAt, updated_at AS updatedAt
+      FROM custom_domains WHERE domain = ?
+    `);
+    statements.updateCustomDomainStatus = db.prepare(`
+      UPDATE custom_domains SET status = ?, verified_at = ?, updated_at = ? WHERE id = ?
+    `);
+    statements.updateCustomDomainPort = db.prepare(`
+      UPDATE custom_domains SET port = ?, updated_at = ? WHERE userid = ? AND appname = ?
+    `);
+    statements.deleteCustomDomainById = db.prepare(`
+      DELETE FROM custom_domains WHERE id = ?
+    `);
+    statements.deleteCustomDomainsByApp = db.prepare(`
+      DELETE FROM custom_domains WHERE userid = ? AND appname = ?
+    `);
+    statements.listAllActiveCustomDomains = db.prepare(`
+      SELECT id, userid, appname, domain, target, port,
+             status, verified_at AS verifiedAt, created_at AS createdAt, updated_at AS updatedAt
+      FROM custom_domains
+      WHERE status = 'active'
+      ORDER BY userid, appname, created_at ASC
+    `);
+
     const admin = statements.selectUserByUsername.get("admin");
     if (!admin) {
       const createdAt = nowIso();
       const hash = bcrypt.hashSync("admin", config.bcryptRounds);
-      statements.insertUser.run("admin", hash, ROLE_ADMIN, 1, createdAt, createdAt);
+      statements.insertUser.run(
+        "admin",
+        hash,
+        ROLE_ADMIN,
+        1,
+        createdAt,
+        createdAt,
+      );
       console.warn("[portal] bootstrap admin created: id=admin, pw=admin");
     }
 
@@ -600,7 +691,7 @@ function createAuthService(options) {
 
   function getPublicConfig() {
     return {
-      sessionCookieName: config.sessionCookieName
+      sessionCookieName: config.sessionCookieName,
     };
   }
 
@@ -616,7 +707,9 @@ function createAuthService(options) {
     deleteUser,
     updateUserRole,
     getPublicConfig,
-    getDbPath: () => config.dbPath
+    getDbPath: () => config.dbPath,
+    getDb: () => db,
+    getStatements: () => statements,
   };
 }
 

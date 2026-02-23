@@ -79,6 +79,7 @@ function setCreateUserError(message = "")  { setInlineError(el.createUserError, 
 function setDeleteUserError(message = "")  { setInlineError(el.deleteUserError,  message); }
 function setPromoteAdminError(message = "") { setInlineError(el.promoteAdminError, message); }
 function setEnvError(message = "")         { setInlineError(el.detailEnvError,    message); }
+function setAddDomainError(message = "")   { setInlineError(el.addDomainError,    message); }
 
 // ── 앱 생성 폼 필드 유효성 시각화 ────────────────────────────────────────────
 
@@ -302,6 +303,7 @@ export {
   redirectToAuth,
   runtimeBadgeHtml,
   setBanner,
+  setAddDomainError,
   setCreateUserError,
   setDeleteUserError,
   setEnvError,

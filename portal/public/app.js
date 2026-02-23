@@ -22,6 +22,7 @@ import {
   persistUiState,
   readPersistedUiState,
   redirectToAuth,
+  setAddDomainError,
   setBanner,
   setCreateUserError,
   setDeleteUserError,
@@ -32,6 +33,7 @@ import {
 } from "./app-utils.js";
 import {
   bindBackdropClose,
+  closeAddDomainModal,
   closeCreateUserModal,
   closeDeleteUserModal,
   closeMobileMenu,
@@ -39,6 +41,7 @@ import {
   closeSettingsModal,
   closeJobListModal,
   configureUiHandlers,
+  openAddDomainModal,
   openCreateUserModal,
   openDeleteUserModal,
   openPromoteAdminModal,
@@ -61,6 +64,7 @@ import {
   setExecApiHandlers,
 } from "./app-exec.js";
 import {
+  addCustomDomain,
   apiFetch,
   getActionTarget,
   handleCreate,
@@ -69,6 +73,7 @@ import {
   loadAndRecoverJobs,
   loadApps,
   loadAdminApps,
+  loadDetailDomains,
   loadPortalLogs,
   loadConfig,
   loadDetailEnv,
@@ -77,6 +82,7 @@ import {
   loadUsers,
   performAction,
   refreshDashboardData,
+  removeCustomDomain,
   retryJob,
   cancelJob,
   saveDetailEnv,
@@ -85,6 +91,7 @@ import {
   startAdminLogsAutoRefresh,
   stopAdminLogsAutoRefresh,
   stopAutoRefresh,
+  verifyCustomDomain,
 } from "./app-api.js";
 
 // 로그 새로고침 버튼 UI 상태 동기화 (data-auto 속성 + 텍스트)
@@ -99,6 +106,7 @@ configureUiHandlers({
   handleRequestError,
   loadDetailEnv,
   loadDetailLogs,
+  loadDetailDomains,
   resetExecForApp,
   retryAllAlertJobs: async (alertJobs) => {
     for (const job of alertJobs) {
@@ -150,7 +158,82 @@ el.detailTabBtns.forEach((btn) => {
     if (tab === "logs"     && state.selectedApp) loadDetailLogs().catch(handleRequestError);
     if (tab === "exec"     && state.selectedApp) initExecCwd().catch(() => {});
     if (tab === "settings" && state.selectedApp) loadDetailEnv().catch(handleRequestError);
+    if (tab === "domains"  && state.selectedApp) loadDetailDomains().catch(handleRequestError);
   });
+});
+
+// ── 커스텀 도메인 ─────────────────────────────────────────────────────────────
+
+el.detailAddDomainBtn.addEventListener("click", openAddDomainModal);
+
+el.closeAddDomainBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  closeAddDomainModal();
+});
+el.cancelAddDomainBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  closeAddDomainModal();
+});
+bindBackdropClose(el.addDomainModal, "addDomain", closeAddDomainModal);
+
+el.addDomainForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  setAddDomainError("");
+  const domain = el.addDomainInput.value.trim().toLowerCase();
+  if (!domain) {
+    setAddDomainError("도메인을 입력하세요.");
+    return;
+  }
+  el.submitAddDomainBtn.disabled = true;
+  el.submitAddDomainBtn.textContent = "추가 중...";
+  try {
+    await addCustomDomain(domain);
+    closeAddDomainModal();
+    await loadDetailDomains();
+    showToast(`도메인 추가 완료: ${domain}`, "success");
+  } catch (error) {
+    setAddDomainError(normalizeErrorMessage(error, "도메인 추가 중 오류가 발생했습니다."));
+  } finally {
+    el.submitAddDomainBtn.disabled = false;
+    el.submitAddDomainBtn.textContent = "추가";
+  }
+});
+
+
+el.detailPanelDomains.addEventListener("click", async (event) => {
+  const verifyBtn = event.target.closest("button[data-action='verify-domain']");
+  if (verifyBtn) {
+    const id = Number.parseInt(verifyBtn.dataset.id, 10);
+    if (!id) return;
+    verifyBtn.disabled = true;
+    try {
+      const updated = await verifyCustomDomain(id);
+      await loadDetailDomains();
+      const msg = updated?.status === "active"
+        ? `인증 완료: ${updated.domain}`
+        : "CNAME이 아직 설정되지 않았습니다. DNS 전파 후 다시 시도하세요.";
+      showToast(msg, updated?.status === "active" ? "success" : "error");
+    } catch (error) {
+      await handleRequestError(error);
+    } finally {
+      verifyBtn.disabled = false;
+    }
+    return;
+  }
+
+  const removeBtn = event.target.closest("button[data-action='remove-domain']");
+  if (removeBtn) {
+    const id = Number.parseInt(removeBtn.dataset.id, 10);
+    if (!id) return;
+    if (!window.confirm("이 도메인을 제거하시겠습니까?")) return;
+    try {
+      await removeCustomDomain(id);
+      await loadDetailDomains();
+      showToast("도메인이 제거되었습니다.", "success");
+    } catch (error) {
+      await handleRequestError(error);
+    }
+  }
 });
 
 // ── 로그 ─────────────────────────────────────────────────────────────────
@@ -547,6 +630,7 @@ el.jobListTbody.addEventListener("click", async (event) => {
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" && event.key !== "Esc") return;
   if (!el.promoteAdminModal.hidden) { closePromoteAdminModal();                  return; }
+  if (!el.addDomainModal.hidden)    { closeAddDomainModal();                     return; }
   if (!el.deleteUserModal.hidden)   { closeDeleteUserModal({ resetForm: true }); return; }
   if (!el.createUserModal.hidden)   { closeCreateUserModal({ resetForm: true }); return; }
   if (!el.settingsModal.hidden)     { closeSettingsModal();                      return; }

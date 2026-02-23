@@ -12,7 +12,7 @@
 export const AUTO_REFRESH_MS = 5000;
 export const UI_STATE_STORAGE_KEY = "portal.uiState";
 export const AVAILABLE_VIEWS = ["dashboard", "create", "app-detail", "users", "admin-dashboard"];
-export const AVAILABLE_DETAIL_TABS = ["logs", "exec", "settings"];
+export const AVAILABLE_DETAIL_TABS = ["logs", "exec", "settings", "domains"];
 export const AVAILABLE_ADMIN_TABS = ["apps", "logs"];
 export const DEFAULT_VIEW = "dashboard";
 export const DEFAULT_DETAIL_TAB = "logs";
@@ -107,6 +107,22 @@ export const el = {
   detailPanelLogs:     document.getElementById("detail-panel-logs"),
   detailPanelExec:     document.getElementById("detail-panel-exec"),
   detailPanelSettings: document.getElementById("detail-panel-settings"),
+  detailPanelDomains:  document.getElementById("detail-panel-domains"),
+
+  // Domains 탭
+  detailAddDomainBtn:  document.getElementById("detail-add-domain-btn"),
+  domainsTableWrap:    document.getElementById("domains-table-wrap"),
+  domainsTableBody:    document.getElementById("domains-table-body"),
+  domainsEmptyState:   document.getElementById("domains-empty-state"),
+
+  // 도메인 추가 모달
+  addDomainModal:      document.getElementById("add-domain-modal"),
+  closeAddDomainBtn:   document.getElementById("close-add-domain-btn"),
+  cancelAddDomainBtn:  document.getElementById("cancel-add-domain-btn"),
+  addDomainForm:       document.getElementById("add-domain-form"),
+  addDomainInput:      document.getElementById("add-domain-input"),
+  addDomainError:      document.getElementById("add-domain-error"),
+  submitAddDomainBtn:  document.getElementById("submit-add-domain-btn"),
 
   // Logs 탭
   detailLogLinesInput:    document.getElementById("detail-log-lines-input"),
@@ -188,6 +204,7 @@ export const modalBackdropState = {
   deleteUser:  false,
   promoteAdmin: false,
   jobList:     false,
+  addDomain:   false,
 };
 
 // 앱 생성 폼의 shake 애니메이션 타이머 ID 목록 (clearCreateValidationTimers로 일괄 취소)

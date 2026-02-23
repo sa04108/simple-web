@@ -114,6 +114,11 @@ async function executeJob(job) {
       case "deploy": {
         const { userid, appname } = meta;
         await runRunnerScript(RUNNER_SCRIPTS.deploy, [userid, appname], { onLog });
+        if (_onAppDeployedHook) {
+          const deployed = await findDockerApp(userid, appname);
+          const port = Number(deployed?.port) || 5000;
+          _onAppDeployedHook(userid, appname, port);
+        }
         jobStore.finishJob(id, "deployed");
         break;
       }
@@ -122,6 +127,7 @@ async function executeJob(job) {
         const args = [userid, appname];
         if (keepData) args.push("--keep-data");
         await runRunnerScript(RUNNER_SCRIPTS.delete, args, { onLog });
+        if (_onAppDeletedHook) _onAppDeletedHook(userid, appname);
         jobStore.finishJob(id, "deleted");
         break;
       }
@@ -159,7 +165,15 @@ async function executeJob(job) {
 const jobsRouter = require("./jobs");
 jobsRouter.setExecuteJobFn(executeJob);
 
-module.exports.executeJob = executeJob;
+// ── 앱 이벤트 훅 ─────────────────────────────────────────────────────────────
+// server.js에서 domainManager 의존성을 순환 없이 주입하기 위한 훅 패턴
+// (jobs.js의 setExecuteJobFn 패턴과 동일)
+
+let _onAppDeletedHook = null;
+let _onAppDeployedHook = null;
+
+function setOnAppDeletedHook(fn) { _onAppDeletedHook = fn; }
+function setOnAppDeployedHook(fn) { _onAppDeployedHook = fn; }
 
 // ── 앱 CRUD ───────────────────────────────────────────────────────────────────
 
@@ -363,5 +377,10 @@ router.put("/:userid/:appname/env", async (req, res, next) => {
     return next(error);
   }
 });
+
+// module.exports = router 이후에도 접근 가능하도록 router 객체에 직접 부착
+router.executeJob            = executeJob;
+router.setOnAppDeletedHook   = setOnAppDeletedHook;
+router.setOnAppDeployedHook  = setOnAppDeployedHook;
 
 module.exports = router;
