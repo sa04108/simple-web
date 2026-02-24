@@ -3,6 +3,25 @@ services:
     environment:
       - RUN_MODE=development
 
+  # dev 모드: ACME/HTTPS 없이 HTTP 전용으로 오버라이드
+  # (localhost는 Let's Encrypt 인증서 발급 불가)
+  traefik:
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.constraints=Label(`paas.type`, `user-app`)"
+      - "--providers.docker.defaultRule=Host(`{{ index .Labels \"paas.domain\" }}`)"
+      - "--providers.docker.network=${APP_NETWORK:-paas-app}"
+      - "--providers.file.directory=/traefik-dynamic"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "18080:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./portal-data/traefik-dynamic:/traefik-dynamic:ro
+
 networks:
   proxy:
     name: ${APP_NETWORK:-paas-app}

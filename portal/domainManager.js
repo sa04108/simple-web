@@ -16,7 +16,7 @@ const crypto = require("node:crypto");
 const dns = require("node:dns").promises;
 
 const { AppError } = require("./utils");
-const { config } = require("./config");
+const { config, IS_DEV } = require("./config");
 
 // FQDN 기본 검증 정규식
 const FQDN_REGEX =
@@ -65,10 +65,14 @@ async function rebuildTraefikConfig(statements) {
       `    ${routerKey}:`,
       `      rule: "Host(\`${row.domain}\`)"`,
       `      entryPoints:`,
-      `        - web`,
+      `        - ${IS_DEV ? "web" : "websecure"}`,
       `      service: ${routerKey}-svc`,
       `      middlewares:`,
       `        - ${routerKey}-rewrite-host`,
+      ...(IS_DEV ? [] : [
+        `      tls:`,
+        `        certResolver: letsencrypt`,
+      ]),
     );
 
     serviceLines.push(

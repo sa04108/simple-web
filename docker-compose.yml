@@ -3,7 +3,6 @@ services:
     image: traefik:v3.6
     container_name: paas-proxy
     command:
-      - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.constraints=Label(`paas.type`, `user-app`)"
@@ -11,12 +10,24 @@ services:
       - "--providers.docker.network=${APP_NETWORK:-paas-app}"
       - "--providers.file.directory=/traefik-dynamic"
       - "--providers.file.watch=true"
+      # HTTP: Let's Encrypt HTTP-01 challenge 수신 및 HTTPS로 리다이렉트
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # HTTPS
+      - "--entrypoints.websecure.address=:443"
+      # Let's Encrypt ACME (HTTP-01 challenge)
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
     ports:
-      - "18080:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./portal-data/traefik-dynamic:/traefik-dynamic:ro
+      - ./portal-data/letsencrypt:/letsencrypt
     networks:
       - proxy
       - paas-app
@@ -50,7 +61,6 @@ services:
 
 networks:
   proxy:
-    external: true
     name: proxy
   paas-app:
     external: true

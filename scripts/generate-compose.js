@@ -32,6 +32,9 @@ const DEFAULT_RESTART_POLICY = process.env.DEFAULT_RESTART_POLICY || 'unless-sto
 const PAAS_DOCKERFILE_NAME = '.paas.Dockerfile';
 const DEFAULT_CONTAINER_PORT = 5000;
 
+// localhost 계열 도메인은 dev 환경 → TLS 불필요
+const TLS_ENABLED = !PAAS_DOMAIN.endsWith('localhost');
+
 // --- 유틸 ---
 
 /**
@@ -97,9 +100,13 @@ function buildCompose({ userid, appname, appDir }) {
     `      - ${JSON.stringify('traefik.enable=true')}`,
     // 라우터: defaultRule 대신 명시적으로 선언해야 미들웨어를 붙일 수 있다.
     `      - ${JSON.stringify(`traefik.http.routers.${containerName}.rule=Host(\`${domain}\`)`)}`,
-    `      - ${JSON.stringify(`traefik.http.routers.${containerName}.entrypoints=web`)}`,
+    `      - ${JSON.stringify(`traefik.http.routers.${containerName}.entrypoints=${TLS_ENABLED ? 'websecure' : 'web'}`)}`,
     `      - ${JSON.stringify(`traefik.http.routers.${containerName}.service=${containerName}`)}`,
     `      - ${JSON.stringify(`traefik.http.routers.${containerName}.middlewares=${containerName}-rewrite-host`)}`,
+    ...(TLS_ENABLED ? [
+      `      - ${JSON.stringify(`traefik.http.routers.${containerName}.tls=true`)}`,
+      `      - ${JSON.stringify(`traefik.http.routers.${containerName}.tls.certresolver=letsencrypt`)}`,
+    ] : []),
     // 서비스: 컨테이너가 실제로 리스닝하는 포트로 명시적 포워딩
     `      - ${JSON.stringify(`traefik.http.services.${containerName}.loadbalancer.server.port=${containerPort}`)}`,
     // 미들웨어: Host 헤더를 localhost로 재작성 → Vite 등 dev server의 host 검증을 통과시킨다.
