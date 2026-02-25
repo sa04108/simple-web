@@ -59,8 +59,8 @@ services:
             - './:${PAAS_ROOT:-/paas}'
             - 'portal_node_modules:${PAAS_ROOT:-/paas}/portal/node_modules'
             - /var/run/docker.sock:/var/run/docker.sock
-#        networks:
-#            - proxy
+        networks:
+            - paas-app
 
 networks:
     #    proxy:
