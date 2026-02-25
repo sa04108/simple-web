@@ -16,11 +16,14 @@ services:
             - '--entrypoints.web.http.redirections.entrypoint.scheme=https'
             # HTTPS
             - '--entrypoints.websecure.address=:443'
-            # Let's Encrypt ACME (HTTP-01 challenge)
-            - '--certificatesresolvers.letsencrypt.acme.httpchallenge=true'
-            - '--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web'
+            # Let's Encrypt ACME (DNS-01 challenge via Cloudflare)
+            - '--certificatesresolvers.letsencrypt.acme.dnschallenge=true'
+            - '--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare'
+            - '--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53'
             - '--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}'
             - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
+        environment:
+            - CF_DNS_API_TOKEN=${CF_DNS_API_TOKEN}
         ports:
             - '80:80'
             - '443:443'
