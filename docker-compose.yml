@@ -19,6 +19,10 @@ services:
             - '--certificatesresolvers.letsencrypt.acme.dnschallenge=true'
             - '--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare'
             - '--certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53'
+            # 아웃바운드 53포트(UDP/DNS) 차단 환경을 우회하기 위해 엄격한 사전 DNS 전파 검증 생략
+            - '--certificatesresolvers.letsencrypt.acme.dnschallenge.disablepropagationcheck=true'
+            # 사전 검증 생략 대신 30초 대기 후 Let's Encrypt 검증 시도 (NPM과 동일한 방식)
+            - '--certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=30'
             - '--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}'
             - '--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json'
         environment:
