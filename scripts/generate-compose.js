@@ -5,8 +5,8 @@
  * generate-compose.js <userid> <appname>
  *
  * {APP_DIR}/docker-compose.yml을 생성한다.
- *
- * 컨테이너 포트: 사용 중인 Dockerfile의 EXPOSE 포트 (없으면 기본값)
+ * APP_IMAGE 환경변수에 pre-built 이미지 태그를 전달받아 image: 필드로 참조한다.
+ * (빌드는 create.sh에서 railpack build 또는 docker build로 별도 수행)
  *
  * 모든 환경에서 포트를 직접 노출하지 않고 Traefik 리버스 프록시를 경유한다.
  * dev 환경에서는 PAAS_DOMAIN=localhost 설정으로 *.localhost 도메인을 통해 접근한다.
@@ -21,41 +21,18 @@ const PAAS_APPS_DIR          = process.env.PAAS_APPS_DIR          || `${PAAS_ROO
 const PAAS_DOMAIN            = process.env.PAAS_DOMAIN            || 'my.domain.com';
 const APP_NETWORK            = process.env.APP_NETWORK            || 'paas-app';
 const APP_CONTAINER_PREFIX   = process.env.APP_CONTAINER_PREFIX   || 'paas-app';
-const APP_SOURCE_SUBDIR      = process.env.APP_SOURCE_SUBDIR      || 'app';
 const APP_DATA_SUBDIR        = process.env.APP_DATA_SUBDIR        || 'data';
 const APP_COMPOSE_FILE       = process.env.APP_COMPOSE_FILE       || 'docker-compose.yml';
 const DEFAULT_MEM_LIMIT      = process.env.DEFAULT_MEM_LIMIT      || '256m';
 const DEFAULT_CPU_LIMIT      = process.env.DEFAULT_CPU_LIMIT      || '0.5';
 const DEFAULT_RESTART_POLICY = process.env.DEFAULT_RESTART_POLICY || 'unless-stopped';
+const APP_IMAGE              = process.env.APP_IMAGE; // create.sh에서 빌드 후 전달
 
 // --- 내부 규약 ---
-const PAAS_DOCKERFILE_NAME = '.paas.Dockerfile';
 const DEFAULT_CONTAINER_PORT = 5000;
 
 // localhost 계열 도메인은 dev 환경 → TLS 불필요
 const TLS_ENABLED = !PAAS_DOMAIN.endsWith('localhost');
-
-// --- 유틸 ---
-
-/**
- * Dockerfile의 첫 번째 EXPOSE 포트를 파싱한다.
- * 없거나 읽기 실패 시 null 반환.
- */
-function parseDockerfileExposePort(dockerfilePath) {
-  try {
-    const content = fs.readFileSync(dockerfilePath, 'utf8');
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (/^EXPOSE\s+\d+/i.test(trimmed)) {
-        const port = Number.parseInt(trimmed.split(/\s+/)[1], 10);
-        if (port > 0 && port <= 65535) return port;
-      }
-    }
-  } catch {
-    // 읽기/파싱 실패
-  }
-  return null;
-}
 
 // --- compose 생성 ---
 
@@ -66,24 +43,16 @@ function buildCompose({ userid, appname, appDir }) {
   const containerName = `${APP_CONTAINER_PREFIX}-${userid}-${appname}`;
   const domain = `${userid}-${appname}.${PAAS_DOMAIN}`;
 
-  const userDockerfilePath = path.join(appDir, APP_SOURCE_SUBDIR, 'Dockerfile');
-  const hasUserDockerfile = fs.existsSync(userDockerfilePath);
+  if (!APP_IMAGE) {
+    throw new Error('APP_IMAGE 환경변수가 설정되지 않았습니다. create.sh에서 빌드 후 전달해야 합니다.');
+  }
 
-  // 사용 중인 Dockerfile 결정
-  const dockerfileRef = hasUserDockerfile ? 'Dockerfile' : PAAS_DOCKERFILE_NAME;
-
-  // 컨테이너 포트: 사용 Dockerfile의 EXPOSE 값, 없으면 기본값
-  const dockerfilePath = hasUserDockerfile
-    ? userDockerfilePath
-    : path.join(appDir, APP_SOURCE_SUBDIR, PAAS_DOCKERFILE_NAME);
-  const containerPort = parseDockerfileExposePort(dockerfilePath) ?? DEFAULT_CONTAINER_PORT;
+  const containerPort = DEFAULT_CONTAINER_PORT;
 
   const content = [
     'services:',
     '  app:',
-    '    build:',
-    `      context: ./${APP_SOURCE_SUBDIR}`,
-    `      dockerfile: ${JSON.stringify(dockerfileRef)}`,
+    `    image: ${JSON.stringify(APP_IMAGE)}`,
     `    container_name: ${JSON.stringify(containerName)}`,
     `    restart: ${JSON.stringify(DEFAULT_RESTART_POLICY)}`,
     '    volumes:',

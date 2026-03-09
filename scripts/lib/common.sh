@@ -29,7 +29,6 @@ DEPLOY_TIMEOUT_SECS="${DEPLOY_TIMEOUT_SECS:-30}"
 DEPLOY_LOG_TAIL_LINES="${DEPLOY_LOG_TAIL_LINES:-120}"
 
 DETECT_RUNTIME_TOOL="${SCRIPTS_DIR}/detect-runtime.js"
-GENERATE_DOCKERFILE_TOOL="${SCRIPTS_DIR}/generate-dockerfile.js"
 GENERATE_COMPOSE_TOOL="${SCRIPTS_DIR}/generate-compose.js"
 
 # 컨테이너 경로(/paas/...)를 호스트 경로로 변환
@@ -103,4 +102,31 @@ app_container_name() {
   local user_id="$1"
   local app_name="$2"
   echo "${APP_CONTAINER_PREFIX}-${user_id}-${app_name}"
+}
+
+ensure_railpack() {
+  local bin_dir="${PAAS_ROOT}/bin"
+  mkdir -p "${bin_dir}"
+  local railpack_exe="${bin_dir}/railpack"
+  if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+    railpack_exe="${bin_dir}/railpack.exe"
+  fi
+
+  if [[ ! -x "${railpack_exe}" ]]; then
+    echo "[common] Downloading railpack CLI..." >&2
+    local version="v0.17.2"
+    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
+      local url="https://github.com/railwayapp/railpack/releases/download/${version}/railpack-${version}-x86_64-pc-windows-msvc.zip"
+      curl -sL "${url}" -o "${bin_dir}/railpack.zip"
+      unzip -q -o "${bin_dir}/railpack.zip" -d "${bin_dir}"
+      rm "${bin_dir}/railpack.zip"
+    else
+      local url="https://github.com/railwayapp/railpack/releases/download/${version}/railpack-${version}-x86_64-unknown-linux-musl.tar.gz"
+      curl -sL "${url}" -o "${bin_dir}/railpack.tar.gz"
+      tar -xzf "${bin_dir}/railpack.tar.gz" -C "${bin_dir}" railpack
+      rm "${bin_dir}/railpack.tar.gz"
+    fi
+    chmod +x "${railpack_exe}"
+  fi
+  export PATH="${bin_dir}:${PATH}"
 }

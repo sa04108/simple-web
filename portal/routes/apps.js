@@ -14,11 +14,9 @@ const { ROLE_ADMIN } = require("../authService");
 const { AppError, normalizeBoolean, sendOk } = require("../utils");
 const { config, IS_DEV, RUNNER_SCRIPTS } = require("../config");
 const {
-  getAppDir,
   validateAppParams,
   assertUserId,
   assertAppName,
-  pathExists,
   buildAppInfo,
   ensureAppExists,
   findDockerApp,
@@ -192,11 +190,6 @@ router.post("/", async (req, res, next) => {
     const userAppCount = existingApps.filter((item) => item.userid === userid).length;
     if (userAppCount >= config.MAX_APPS_PER_USER) {
       throw new AppError(429, `MAX_APPS_PER_USER exceeded (${config.MAX_APPS_PER_USER})`);
-    }
-
-    const targetAppDir = getAppDir(userid, appname);
-    if (await pathExists(targetAppDir)) {
-      throw new AppError(409, "App already exists");
     }
 
     dispatchJob(res, "create", { userid, appname, repoUrl, branch }, userid);

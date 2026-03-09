@@ -43,8 +43,8 @@ services:
         build:
             context: .
             dockerfile_inline: |
-                FROM node:22-alpine
-                RUN apk add --no-cache bash git docker-cli docker-cli-compose docker-cli-buildx
+                FROM node:22
+                RUN curl -fsSL https://get.docker.com | sh
                 WORKDIR ${PAAS_ROOT:-/paas}/portal
         image: paas-portal:local
         container_name: paas-portal
@@ -58,6 +58,7 @@ services:
             - '${PORTAL_PORT:-3000}:${PORTAL_PORT:-3000}'
         environment:
             - PAAS_HOST_ROOT=${PWD}
+            - BUILDKIT_HOST=tcp://buildkit:1234
         volumes:
             - './:${PAAS_ROOT:-/paas}'
             - 'portal_node_modules:${PAAS_ROOT:-/paas}/portal/node_modules'
@@ -71,6 +72,17 @@ services:
             - 'traefik.http.routers.portal.entrypoints=websecure'
             - 'traefik.http.routers.portal.tls.certresolver=letsencrypt'
             - 'traefik.http.services.portal.loadbalancer.server.port=${PORTAL_PORT:-3000}'
+
+    buildkit:
+        image: moby/buildkit:latest
+        container_name: paas-buildkit
+        privileged: true
+        restart: unless-stopped
+        command:
+            - '--addr=tcp://0.0.0.0:1234'
+            - '--addr=unix:///run/buildkit/buildkitd.sock'
+        networks:
+            - paas-app
 
 networks:
     #    proxy:

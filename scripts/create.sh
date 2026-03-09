@@ -5,9 +5,10 @@
 # 역할:
 #   1) userid / appname / repoUrl 유효성 검증
 #   2) git clone으로 사용자 repo를 앱 디렉토리에 복제
-#   3) package.json 분석으로 런타임 자동 감지
-#   4) 감지 결과 기반 Dockerfile 및 docker-compose.yml 생성
-#   5) docker compose up -d --build 로 컨테이너 빌드 및 기동
+#   3) detect-runtime.js로 런타임 메타데이터 감지 (UI 표시용)
+#   4) railpack build (또는 사용자 Dockerfile의 경우 docker build)로 이미지 빌드
+#   5) generate-compose.js로 docker-compose.yml 생성
+#   6) docker compose up -d 로 컨테이너 기동
 #
 # 사용법:
 #   create.sh <userid> <appname> <repoUrl> [branch]
@@ -42,8 +43,8 @@ APP_DIR="$(app_dir_for "${USER_ID}" "${APP_NAME}")"
 COMPOSE_FILE="$(app_compose_file_path "${APP_DIR}")"
 
 if [[ -e "${APP_DIR}" ]]; then
-  echo "App already exists: ${USER_ID}/${APP_NAME}" >&2
-  exit 1
+  echo "[create] [info] 앱 경로가 이미 존재합니다. 기존 소스를 덮어씌웁니다: ${USER_ID}/${APP_NAME}"
+  rm -rf "${APP_DIR}/${APP_SOURCE_SUBDIR}"
 fi
 
 # app 소스 디렉토리 복제 실패 시 정리 (메타데이터 및 기타 구조 보존을 위해 app 폴더 전체 대신 소스코드만 삭제)
@@ -59,17 +60,29 @@ echo "[create] repo 복제: ${REPO_URL} (branch: ${BRANCH})"
 git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${APP_DIR}/${APP_SOURCE_SUBDIR}"
 
 require_node
+ensure_railpack
 
 echo "[create] 런타임 감지 중..."
 RUNTIME_JSON="$(node "${DETECT_RUNTIME_TOOL}" "${APP_DIR}/${APP_SOURCE_SUBDIR}")"
 DISPLAY_NAME="$(node -e "console.log(JSON.parse(process.argv[1]).displayName)" "${RUNTIME_JSON}")"
 echo "[create] 감지된 런타임: ${DISPLAY_NAME}"
 
-echo "[create] Dockerfile 생성 중..."
-node "${GENERATE_DOCKERFILE_TOOL}" "${RUNTIME_JSON}" "${APP_DIR}/${APP_SOURCE_SUBDIR}"
+APP_IMAGE="paas-app-${USER_ID}-${APP_NAME}:latest"
+
+# 사용자 repo에 Dockerfile이 있으면 docker build, 없으면 railpack build
+if [[ -f "${APP_DIR}/${APP_SOURCE_SUBDIR}/Dockerfile" ]]; then
+  echo "[create] 사용자 Dockerfile 감지 → docker build 사용"
+  DOCKER_BUILDKIT=1 docker build \
+    -t "${APP_IMAGE}" \
+    -f "${APP_DIR}/${APP_SOURCE_SUBDIR}/Dockerfile" \
+    "${APP_DIR}/${APP_SOURCE_SUBDIR}"
+else
+  echo "[create] railpack build 사용"
+  (cd "${APP_DIR}/${APP_SOURCE_SUBDIR}" && railpack build . --name "${APP_IMAGE}")
+fi
 
 echo "[create] docker-compose.yml 생성 중..."
-node "${GENERATE_COMPOSE_TOOL}" "${USER_ID}" "${APP_NAME}"
+APP_IMAGE="${APP_IMAGE}" node "${GENERATE_COMPOSE_TOOL}" "${USER_ID}" "${APP_NAME}"
 
 echo "[create] 앱 메타데이터 기록..."
 REPO_URL="${REPO_URL}" \
@@ -86,10 +99,10 @@ const meta = {
 require('fs').writeFileSync(process.env.META_PATH, JSON.stringify(meta, null, 2));
 "
 
-# 빌드 및 기동 (빌드 로그 포함)
+# 기동 (이미 빌드된 이미지를 사용)
 mkdir -p "$(app_log_dir_for "${APP_DIR}")"
-echo "[create] 컨테이너 빌드 및 기동 중..."
-docker compose -f "${COMPOSE_FILE}" up -d --build 2>&1 | tee -a "${APP_DIR}/${APP_LOGS_SUBDIR}/create.log"
+echo "[create] 컨테이너 기동 중..."
+docker compose -f "${COMPOSE_FILE}" up -d 2>&1 | tee -a "${APP_DIR}/${APP_LOGS_SUBDIR}/create.log"
 
 # echo "[create] 소스 디렉토리 유지 (deploy 목적)..."
 # rm -rf "${APP_DIR}/${APP_SOURCE_SUBDIR}"
