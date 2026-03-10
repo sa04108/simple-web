@@ -45,6 +45,7 @@ services:
             dockerfile_inline: |
                 FROM node:22
                 RUN curl -fsSL https://get.docker.com | sh
+                RUN curl -sSL https://railpack.com/install.sh | sh
                 WORKDIR ${PAAS_ROOT:-/paas}/portal
         image: paas-portal:local
         container_name: paas-portal
