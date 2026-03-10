@@ -18,6 +18,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/lib/build.sh"
 
 usage() {
   echo "Usage: deploy.sh <userid> <appname>" >&2
@@ -83,15 +85,15 @@ RUNTIME_JSON="$(node "${DETECT_RUNTIME_TOOL}" "${APP_DIR}/${APP_SOURCE_SUBDIR}")
 DISPLAY_NAME="$(node -e "console.log(JSON.parse(process.argv[1]).displayName)" "${RUNTIME_JSON}")"
 echo "[deploy] 감지된 런타임: ${DISPLAY_NAME}"
 
-echo "[deploy] Dockerfile 재생성 중..."
-node "${GENERATE_DOCKERFILE_TOOL}" "${RUNTIME_JSON}" "${APP_DIR}/${APP_SOURCE_SUBDIR}"
+APP_IMAGE="$(app_image_name "${USER_ID}" "${APP_NAME}")"
+build_app_image "${APP_DIR}/${APP_SOURCE_SUBDIR}" "${APP_IMAGE}"
 
-echo "[deploy] Railpack Build Plan 재생성 중..."
-(cd "${APP_DIR}/${APP_SOURCE_SUBDIR}" && railpack prepare .)
+echo "[deploy] docker-compose.yml 재생성 중..."
+generate_app_compose "${USER_ID}" "${APP_NAME}" "${APP_IMAGE}"
 
-echo "[deploy] 컨테이너 재빌드 및 재기동 중..."
+echo "[deploy] 컨테이너 재기동 중..."
 docker compose -f "${COMPOSE_FILE}" down
-docker compose -f "${COMPOSE_FILE}" up -d --build
+docker compose -f "${COMPOSE_FILE}" up -d
 
 echo "[deploy] 빌드 후 dangling 이미지 정리..."
 docker image prune -f || true

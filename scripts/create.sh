@@ -18,6 +18,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "${SCRIPT_DIR}/lib/common.sh"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/lib/build.sh"
 
 usage() {
   echo "Usage: create.sh <userid> <appname> <repoUrl> [branch]" >&2
@@ -67,23 +69,11 @@ RUNTIME_JSON="$(node "${DETECT_RUNTIME_TOOL}" "${APP_DIR}/${APP_SOURCE_SUBDIR}")
 DISPLAY_NAME="$(node -e "console.log(JSON.parse(process.argv[1]).displayName)" "${RUNTIME_JSON}")"
 echo "[create] 감지된 런타임: ${DISPLAY_NAME}"
 
-APP_IMAGE="paas-app-${USER_ID}-${APP_NAME}:latest"
-
-# 사용자 repo에 Dockerfile이 있으면 docker build, 없으면 railpack build
-if [[ -f "${APP_DIR}/${APP_SOURCE_SUBDIR}/Dockerfile" ]]; then
-  echo "[create] 사용자 Dockerfile 감지 → docker build 사용"
-  docker build \
-    -t "${APP_IMAGE}" \
-    -f "${APP_DIR}/${APP_SOURCE_SUBDIR}/Dockerfile" \
-    "${APP_DIR}/${APP_SOURCE_SUBDIR}"
-else
-  echo "[create] railpack build 사용"
-  (cd "${APP_DIR}/${APP_SOURCE_SUBDIR}" && railpack build . --name "${APP_IMAGE}")
-fi
+APP_IMAGE="$(app_image_name "${USER_ID}" "${APP_NAME}")"
+build_app_image "${APP_DIR}/${APP_SOURCE_SUBDIR}" "${APP_IMAGE}"
 
 echo "[create] docker-compose.yml 생성 중..."
-# node 명령에만 사용할 임시 환경변수 할당
-APP_IMAGE="${APP_IMAGE}" node "${GENERATE_COMPOSE_TOOL}" "${USER_ID}" "${APP_NAME}"
+generate_app_compose "${USER_ID}" "${APP_NAME}" "${APP_IMAGE}"
 
 echo "[create] 앱 메타데이터 기록..."
 REPO_URL="${REPO_URL}" \
