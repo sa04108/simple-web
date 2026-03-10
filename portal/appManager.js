@@ -10,8 +10,8 @@
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { constants: fsConstants } = require("node:fs");
-const { execFile, spawn } = require("node:child_process");
-const { promisify } = require("node:util");
+const { spawn } = require("node:child_process");
+const Docker = require("dockerode");
 const readline = require("node:readline");
 
 const { AppError } = require("./utils");
@@ -24,7 +24,7 @@ const {
   APP_COMPOSE_FILE,
 } = require("./config");
 
-const execFileAsync = promisify(execFile);
+const docker = new Docker(); // /var/run/docker.sock (Unix socket)
 
 // .env.paas — 앱별 사용자 정의 환경변수 파일.
 // generate-compose.js가 생성하는 docker-compose.yml에 env_file로 주입된다.
@@ -152,14 +152,14 @@ async function readContainerName(appDir) {
 function normalizeStatus(statusText) {
   const raw = String(statusText || "").trim();
   const normalized = raw.toLowerCase();
-  if (!raw)                                             return "unknown";
-  if (normalized === "docker-unavailable")              return "docker-unavailable";
-  if (normalized.includes("up"))                        return "running";
-  if (normalized.includes("restarting"))                return "restarting";
-  if (normalized.includes("created"))                   return "created";
+  if (!raw) return "unknown";
+  if (normalized === "docker-unavailable") return "docker-unavailable";
+  if (normalized.includes("up")) return "running";
+  if (normalized.includes("restarting")) return "restarting";
+  if (normalized.includes("created")) return "created";
   if (normalized.includes("exited") ||
-      normalized.includes("dead"))                      return "stopped";
-  if (normalized.includes("not-found"))                 return "not-found";
+    normalized.includes("dead")) return "stopped";
+  if (normalized.includes("not-found")) return "not-found";
   return raw;
 }
 
@@ -476,67 +476,92 @@ async function writeEnvFile(appDir, content) {
 
 // ── 컨테이너 Exec ─────────────────────────────────────────────────────────────
 
-// 컨테이너 내부에서 sh를 통해 임의 명령을 실행하고 { stdout, stderr }를 반환한다.
-// cwd가 주어지면 --workdir 옵션으로 Docker가 프로세스 cwd를 직접 설정한다.
-// 명령이 비정상 종료여도 stdout/stderr가 있으면 그대로 반환한다.
-// 출력이 전혀 없을 때만 합성 에러 메시지를 stderr에 담는다.
+// Docker Engine Unix socket을 통해 컨테이너 내부에서 sh -c 명령을 실행한다.
+// docker CLI fork 없이 직접 소켓 통신하므로 레이턴시가 대폭 낮다.
+// Docker Exec API는 stdout/stderr를 multiplexed stream으로 전달하므로
+// docker.modem.demuxStream()으로 분리한 뒤 버퍼를 합쳐 반환한다.
 async function runContainerExec(containerName, command, cwd) {
-  const shellArgs = cwd
-    ? ["exec", "--workdir", cwd, containerName, "sh", "-c", command]
-    : ["exec", containerName, "sh", "-c", command];
-
-  let stdout = "";
-  let stderr = "";
+  const container = docker.getContainer(containerName);
+  let exec;
   try {
-    const result = await execFileAsync(
-      "docker",
-      shellArgs,
-      { timeout: 30000, maxBuffer: 1 * 1024 * 1024, windowsHide: true }
-    );
-    stdout = String(result.stdout || "").trimEnd();
-    stderr = String(result.stderr || "").trimEnd();
-  } catch (execError) {
-    stdout = String(execError.stdout || "").trimEnd();
-    stderr = String(execError.stderr || "").trimEnd();
-    if (!stdout && !stderr) {
-      if (execError.code === "ENOENT") {
-        throw new AppError(503, "docker command is not available");
-      }
-      stderr = execError.signal === "SIGTERM"
-        ? "Command timed out after 30 seconds"
-        : execError.message || "Command failed";
-    }
+    exec = await container.exec({
+      Cmd: ["sh", "-c", command],
+      WorkingDir: cwd || undefined,
+      AttachStdout: true,
+      AttachStderr: true,
+    });
+  } catch (err) {
+    if (err.statusCode === 404) throw new AppError(404, "Container not found");
+    if (err.statusCode === 409) throw new AppError(409, "Container is not running");
+    throw new AppError(500, err.message || "Exec create failed");
   }
 
-  return { stdout, stderr };
+  return new Promise((resolve, reject) => {
+    exec.start({ hijack: true, stdin: false }, (err, stream) => {
+      if (err) return reject(new AppError(500, err.message || "Exec start failed"));
+
+      const stdoutChunks = [];
+      const stderrChunks = [];
+
+      // multiplexed stream → stdout / stderr 분리
+      docker.modem.demuxStream(
+        stream,
+        { write: (chunk) => stdoutChunks.push(chunk) },
+        { write: (chunk) => stderrChunks.push(chunk) }
+      );
+
+      stream.on("end", () => {
+        const stdout = Buffer.concat(stdoutChunks).toString().trimEnd();
+        const stderr = Buffer.concat(stderrChunks).toString().trimEnd();
+        resolve({ stdout, stderr });
+      });
+
+      stream.on("error", (e) => reject(new AppError(500, e.message || "Exec stream error")));
+    });
+  });
 }
 
 // 컨테이너 내부에서 POSIX sh glob으로 탭 완성 후보 목록을 반환한다.
-// partial을 $1으로 전달하여 셸 인젝션을 방지한다.
+// partial을 argv[1]($1)로 전달하여 셸 인젝션을 방지한다.
 // alpine(ash), debian(dash) 등 모든 Unix 컨테이너에서 동작한다.
-// cwd가 주어지면 --workdir 옵션으로 탭 완성 기준 경로를 설정한다.
+// Docker Engine Unix socket을 통해 직접 실행하므로 CLI fork 오버헤드가 없다.
 async function runContainerComplete(containerName, partial, cwd) {
-  const execArgs = cwd
-    ? ["exec", "--workdir", cwd, containerName]
-    : ["exec", containerName];
+  const container = docker.getContainer(containerName);
+  const GLOB_SCRIPT = 'for f in "$1"*; do [ -e "$f" ] && printf "%s\n" "$f"; done';
 
   try {
-    const result = await execFileAsync(
-      "docker",
-      [
-        ...execArgs,
-        "sh", "-c",
-        'for f in "$1"*; do [ -e "$f" ] && printf "%s\\n" "$f"; done',
-        "--", partial,
-      ],
-      { timeout: 5000, maxBuffer: 64 * 1024, windowsHide: true }
-    );
-    return String(result.stdout || "")
-      .split("\n")
-      .map((s) => s.trimEnd())
-      .filter(Boolean);
+    const exec = await container.exec({
+      Cmd: ["sh", "-c", GLOB_SCRIPT, "--", partial],
+      WorkingDir: cwd || undefined,
+      AttachStdout: true,
+      AttachStderr: false,
+    });
+
+    return new Promise((resolve) => {
+      exec.start({ hijack: true, stdin: false }, (err, stream) => {
+        if (err) return resolve([]);
+
+        const chunks = [];
+        docker.modem.demuxStream(
+          stream,
+          { write: (chunk) => chunks.push(chunk) },
+          { write: () => { } } // stderr 무시
+        );
+
+        stream.on("end", () => {
+          resolve(
+            Buffer.concat(chunks)
+              .toString()
+              .split("\n")
+              .map((s) => s.trimEnd())
+              .filter(Boolean)
+          );
+        });
+        stream.on("error", () => resolve([]));
+      });
+    });
   } catch {
-    // sh glob이 엣지 케이스에서 비정상 종료되면 빈 목록을 반환한다.
+    // 컨테이너 없음/stopped 등 예외는 조용히 빈 목록 반환
     return [];
   }
 }
