@@ -105,7 +105,6 @@ function syncLogRefreshBtn(btn, isAuto) {
   btn.querySelector(".refresh-label").textContent = isAuto ? "Auto" : "새로고침";
 }
 
-setExecApiHandlers({ apiFetch });
 configureUiHandlers({
   handleRequestError,
   loadDetailEnv,
