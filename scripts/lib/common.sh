@@ -104,29 +104,9 @@ app_container_name() {
   echo "${APP_CONTAINER_PREFIX}-${user_id}-${app_name}"
 }
 
-ensure_railpack() {
-  local bin_dir="${PAAS_ROOT}/bin"
-  mkdir -p "${bin_dir}"
-  local railpack_exe="${bin_dir}/railpack"
-  if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-    railpack_exe="${bin_dir}/railpack.exe"
+require_railpack() {
+  if ! command -v railpack > /dev/null 2>&1; then
+    echo "[common] railpack이 설치되어 있지 않습니다. 컨테이너 이미지에 railpack을 포함시켜 주세요." >&2
+    return 1
   fi
-
-  if [[ ! -x "${railpack_exe}" ]]; then
-    echo "[common] Downloading railpack CLI..." >&2
-    local version="v0.17.2"
-    if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin" ]]; then
-      local url="https://github.com/railwayapp/railpack/releases/download/${version}/railpack-${version}-x86_64-pc-windows-msvc.zip"
-      curl -sL "${url}" -o "${bin_dir}/railpack.zip"
-      unzip -q -o "${bin_dir}/railpack.zip" -d "${bin_dir}"
-      rm "${bin_dir}/railpack.zip"
-    else
-      local url="https://github.com/railwayapp/railpack/releases/download/${version}/railpack-${version}-x86_64-unknown-linux-musl.tar.gz"
-      curl -sL "${url}" -o "${bin_dir}/railpack.tar.gz"
-      tar -xzf "${bin_dir}/railpack.tar.gz" -C "${bin_dir}" railpack
-      rm "${bin_dir}/railpack.tar.gz"
-    fi
-    chmod +x "${railpack_exe}"
-  fi
-  export PATH="${bin_dir}:${PATH}"
 }

@@ -54,7 +54,7 @@ exec > >(tee -a "${LOG_FILE}") 2>&1
 echo "[deploy] app=${USER_ID}/${APP_NAME} started_at=$(date -Is)"
 
 require_node
-ensure_railpack
+require_railpack
 
 if [[ ! -d "${APP_DIR}/${APP_SOURCE_SUBDIR}" ]]; then
   echo "[deploy] 소스 디렉토리 없음. .paas-meta.json 기반으로 다시 clone 합니다..."
@@ -91,7 +91,7 @@ echo "[deploy] Railpack Build Plan 재생성 중..."
 
 echo "[deploy] 컨테이너 재빌드 및 재기동 중..."
 docker compose -f "${COMPOSE_FILE}" down
-DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose -f "${COMPOSE_FILE}" up -d --build
+docker compose -f "${COMPOSE_FILE}" up -d --build
 
 echo "[deploy] 빌드 후 dangling 이미지 정리..."
 docker image prune -f || true

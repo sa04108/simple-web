@@ -60,7 +60,7 @@ echo "[create] repo 복제: ${REPO_URL} (branch: ${BRANCH})"
 git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${APP_DIR}/${APP_SOURCE_SUBDIR}"
 
 require_node
-ensure_railpack
+require_railpack
 
 echo "[create] 런타임 감지 중..."
 RUNTIME_JSON="$(node "${DETECT_RUNTIME_TOOL}" "${APP_DIR}/${APP_SOURCE_SUBDIR}")"
@@ -72,7 +72,7 @@ APP_IMAGE="paas-app-${USER_ID}-${APP_NAME}:latest"
 # 사용자 repo에 Dockerfile이 있으면 docker build, 없으면 railpack build
 if [[ -f "${APP_DIR}/${APP_SOURCE_SUBDIR}/Dockerfile" ]]; then
   echo "[create] 사용자 Dockerfile 감지 → docker build 사용"
-  DOCKER_BUILDKIT=1 docker build \
+  docker build \
     -t "${APP_IMAGE}" \
     -f "${APP_DIR}/${APP_SOURCE_SUBDIR}/Dockerfile" \
     "${APP_DIR}/${APP_SOURCE_SUBDIR}"
@@ -82,6 +82,7 @@ else
 fi
 
 echo "[create] docker-compose.yml 생성 중..."
+# node 명령에만 사용할 임시 환경변수 할당
 APP_IMAGE="${APP_IMAGE}" node "${GENERATE_COMPOSE_TOOL}" "${USER_ID}" "${APP_NAME}"
 
 echo "[create] 앱 메타데이터 기록..."
