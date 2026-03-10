@@ -36,11 +36,12 @@ import {
 import { renderUsers, renderJobList } from "./app-render.js";
 
 const uiHandlers = {
-  loadDetailEnv: async () => {},
-  loadDetailLogs: async () => {},
-  loadDetailDomains: async () => {},
-  handleRequestError: async () => {},
-  resetExecForApp: () => {},
+  loadDetailEnv: async () => { },
+  loadDetailLogs: async () => { },
+  loadDetailDomains: async () => { },
+  handleRequestError: async () => { },
+  resetExecForApp: () => { },
+  closeExecSocket: () => { },
 };
 
 function configureUiHandlers(handlers = {}) {
@@ -52,9 +53,9 @@ function switchView(viewName, { persist = true } = {}) {
   state.activeView = nextView;
 
   el.viewDashboard.hidden = nextView !== "dashboard";
-  el.viewCreate.hidden    = nextView !== "create";
+  el.viewCreate.hidden = nextView !== "create";
   el.viewAppDetail.hidden = nextView !== "app-detail";
-  el.viewUsers.hidden     = nextView !== "users";
+  el.viewUsers.hidden = nextView !== "users";
   if (el.viewAdminDashboard) el.viewAdminDashboard.hidden = nextView !== "admin-dashboard";
 
   el.gnbItems.forEach((item) => {
@@ -89,10 +90,10 @@ function switchDetailTab(tabName) {
     btn.setAttribute("aria-selected", String(isActive));
   });
 
-  el.detailPanelLogs.hidden     = nextTab !== "logs";
-  el.detailPanelExec.hidden     = nextTab !== "exec";
+  el.detailPanelLogs.hidden = nextTab !== "logs";
+  el.detailPanelExec.hidden = nextTab !== "exec";
   el.detailPanelSettings.hidden = nextTab !== "settings";
-  el.detailPanelDomains.hidden  = nextTab !== "domains";
+  el.detailPanelDomains.hidden = nextTab !== "domains";
 }
 
 // ── Admin 대시보드 서브탭 ──────────────────────────────────────────────────────
@@ -116,6 +117,7 @@ function switchAdminTab(tabName) {
 // (loadDetailLogs, loadDetailEnv, initExecCwd는 app-api.js / app-exec.js에 정의되어 있으며,
 //  이 함수는 항상 이벤트 핸들러에서만 호출되므로 실행 시점엔 이미 정의가 완료된다.)
 async function navigateToApp(userid, appname) {
+  uiHandlers.closeExecSocket(); // 이전 앱 소켓 정리
   state.selectedApp = { userid, appname };
   uiHandlers.resetExecForApp();
   el.appDetailAppname.textContent = `${userid} / ${appname}`;
@@ -126,8 +128,8 @@ async function navigateToApp(userid, appname) {
   } catch (error) {
     await uiHandlers.handleRequestError(error);
   }
-  uiHandlers.loadDetailEnv().catch(() => {});
-  uiHandlers.loadDetailDomains().catch(() => {});
+  uiHandlers.loadDetailEnv().catch(() => { });
+  uiHandlers.loadDetailDomains().catch(() => { });
 }
 
 // ── 모달 유틸 ─────────────────────────────────────────────────────────────────
@@ -135,11 +137,11 @@ async function navigateToApp(userid, appname) {
 // 모달 열린 상태를 body 클래스에 반영하여 배경 스크롤을 방지한다.
 function syncModalOpenState() {
   const hasOpenModal =
-    !el.settingsModal.hidden   ||
+    !el.settingsModal.hidden ||
     !el.createUserModal.hidden ||
     !el.deleteUserModal.hidden ||
     !el.promoteAdminModal.hidden ||
-    !el.jobListModal.hidden    ||
+    !el.jobListModal.hidden ||
     !el.addDomainModal.hidden;
   document.body.classList.toggle("modal-open", hasOpenModal);
 }
@@ -305,7 +307,7 @@ function closeJobLogModal() {
 function updateAuthUi() {
   if (!isLoggedIn()) {
     el.authState.textContent = "인증 필요";
-    el.logoutBtn.hidden  = true;
+    el.logoutBtn.hidden = true;
     el.settingsBtn.hidden = true;
     el.jobListBtn.hidden = true;
     el.gnbUsersBtn.hidden = true;
@@ -326,7 +328,7 @@ function updateAuthUi() {
 
   const suffix = isPasswordLocked() ? " | 비밀번호 변경 필요" : "";
   el.authState.textContent = `${state.user.username} (${state.user.role})${suffix}`;
-  el.logoutBtn.hidden  = false;
+  el.logoutBtn.hidden = false;
   el.settingsBtn.hidden = false;
   el.jobListBtn.hidden = false;
   el.gnbUsersBtn.hidden = !canManageUsers();
@@ -354,10 +356,10 @@ function renderJobIndicator(jobs) {
   if (!indicator) return;
 
   const activeStatuses = new Set(["pending", "running"]);
-  const alertStatuses  = new Set(["interrupted", "failed"]);
+  const alertStatuses = new Set(["interrupted", "failed"]);
 
-  const activeJobs    = jobs.filter((j) => activeStatuses.has(j.status));
-  const alertJobs     = jobs.filter((j) => alertStatuses.has(j.status));
+  const activeJobs = jobs.filter((j) => activeStatuses.has(j.status));
+  const alertJobs = jobs.filter((j) => alertStatuses.has(j.status));
 
   if (activeJobs.length === 0 && alertJobs.length === 0) {
     indicator.hidden = true;

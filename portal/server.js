@@ -17,6 +17,7 @@
 // =============================================================================
 "use strict";
 const path = require("node:path");
+const http = require("node:http");
 const fs = require("node:fs");
 const express = require("express");
 const { createAuthService } = require("./authService");
@@ -30,16 +31,19 @@ const createDomainsRouter = require("./routes/domains");
 const jobsRouter = require("./routes/jobs");
 const jobStore = require("./jobStore");
 const { createDomainManager } = require("./domainManager");
+const { WebSocketServer } = require("ws");
+const { createExecWsHandler, parseExecWsUrl } = require("./routes/exec-ws");
+const { findDockerApp, runContainerExecStream, runContainerComplete } = require("./appManager");
 
 // ── authService 초기화 ────────────────────────────────────────────────────────
 
 const authService = createAuthService({
-  dbPath:            config.PORTAL_DB_PATH,
+  dbPath: config.PORTAL_DB_PATH,
   sessionCookieName: config.SESSION_COOKIE_NAME,
-  sessionTtlHours:   config.SESSION_TTL_HOURS,
-  cookieSecure:      config.PORTAL_COOKIE_SECURE,
-  bcryptRounds:      config.BCRYPT_ROUNDS,
-  isDev:             IS_DEV,
+  sessionTtlHours: config.SESSION_TTL_HOURS,
+  cookieSecure: config.PORTAL_COOKIE_SECURE,
+  bcryptRounds: config.BCRYPT_ROUNDS,
+  isDev: IS_DEV,
   sendOk,
   sendError,
   AppError,
@@ -48,9 +52,9 @@ const authService = createAuthService({
 // ── Express 앱 조립 ───────────────────────────────────────────────────────────
 
 const app = express();
-const publicDir        = path.join(__dirname, "public");
+const publicDir = path.join(__dirname, "public");
 const dashboardPagePath = path.join(publicDir, "index.html");
-const authPagePath      = path.join(publicDir, "auth.html");
+const authPagePath = path.join(publicDir, "auth.html");
 
 app.set("trust proxy", config.PORTAL_TRUST_PROXY);
 app.use(express.json({ limit: "1mb" }));
@@ -63,12 +67,12 @@ app.get("/health", (_req, res) =>
 
 app.get("/config", (_req, res) =>
   sendOk(res, {
-    domain:      config.PAAS_DOMAIN,
-    devMode:     IS_DEV,
+    domain: config.PAAS_DOMAIN,
+    devMode: IS_DEV,
     traefikPort: IS_DEV ? config.TRAEFIK_HOST_PORT : null,
     limits: {
       maxAppsPerUser: config.MAX_APPS_PER_USER,
-      maxTotalApps:   config.MAX_TOTAL_APPS,
+      maxTotalApps: config.MAX_TOTAL_APPS,
     },
     auth: authService.getPublicConfig(),
   })
@@ -174,7 +178,7 @@ app.get(
     try {
       const requestedLines = Number.parseInt(String(req.query.lines || "120"), 10);
       const lines = Number.isFinite(requestedLines) ? Math.max(1, Math.min(1000, requestedLines)) : 120;
-      
+
       let logs = "";
       try {
         const { stdout, stderr } = await execAsync(`docker logs paas-portal --tail ${lines}`);
@@ -183,7 +187,7 @@ app.get(
         logs = (err.stdout || "") + (err.stderr || "");
         if (!logs) throw err;
       }
-      
+
       return sendOk(res, { lines, logs: logs || "No logs available." });
     } catch (error) {
       return next(error);
@@ -246,7 +250,43 @@ async function start() {
   jobStore.init(config.PORTAL_DB_PATH);
   await jobStore.recoverOnStartup(executeJob);
 
-  app.listen(config.PORTAL_PORT, () => {
+  // ── WebSocket 서버 (exec 스트리밍) ─────────────────────────────────────────
+  // noServer: true — WS 업그레이드를 직접 핸들링하기 위해 자체 HTTP 서버를 쓰지 않는다.
+  const wss = new WebSocketServer({ noServer: true });
+  const handleExecWs = createExecWsHandler({
+    resolveSessionAuth: (req) => authService.resolveSessionAuth(req),
+    findDockerApp,
+    runContainerExecStream,
+    runContainerComplete,
+  });
+  wss.on("connection", handleExecWs);
+
+  const server = http.createServer(app);
+
+  // HTTP → WS 업그레이드 핸들러
+  // exec WS 경로(/apps/:userid/:appname/exec/ws)만 허용하고,
+  // 세션이 없거나 경로가 다르면 소켓을 닫아 거절한다.
+  server.on("upgrade", (req, socket, head) => {
+    const params = parseExecWsUrl(req.url?.split("?")[0]);
+    if (!params) {
+      socket.destroy();
+      return;
+    }
+
+    // 세션 검증 — cookie 기반이므로 req 객체만 있으면 충분하다.
+    const auth = authService.resolveSessionAuth(req);
+    if (!auth) {
+      socket.write("HTTP/1.1 401 Unauthorized\r\n\r\n");
+      socket.destroy();
+      return;
+    }
+
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit("connection", ws, req);
+    });
+  });
+
+  server.listen(config.PORTAL_PORT, () => {
     console.log(`[portal] listening on http://localhost:${config.PORTAL_PORT}`);
     console.log(`[portal] env: ${envFilePath}`);
     console.log(`[portal] apps dir: ${config.PAAS_APPS_DIR}`);

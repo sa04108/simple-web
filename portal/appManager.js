@@ -524,6 +524,69 @@ async function runContainerExec(containerName, command, cwd) {
   });
 }
 
+// 컨테이너 내부 명령을 스트리밍 방식으로 실행한다.
+// stdout/stderr 청크가 도착할 때마다 callbacks.onStdout / onStderr 를 호출하고,
+// 스트림이 끝나면 exec.inspect() 로 exitCode 를 확인하여 callbacks.onDone 을 호출한다.
+// callbacks.onError(err) 는 컨테이너 미발견 등 초기 오류에만 사용된다.
+//
+// 반환값: { destroy() } — 호출자가 도중에 중단할 수 있도록 stream 참조를 노출한다.
+function runContainerExecStream(containerName, command, cwd, callbacks = {}) {
+  const { onStdout = () => { }, onStderr = () => { }, onDone = () => { }, onError = () => { } } = callbacks;
+
+  let stream = null;
+  let destroyed = false;
+
+  const handle = {
+    destroy() {
+      destroyed = true;
+      try { stream?.destroy(); } catch { /* ignore */ }
+    },
+  };
+
+  (async () => {
+    const container = docker.getContainer(containerName);
+    let exec;
+    try {
+      exec = await container.exec({
+        Cmd: ["sh", "-c", command],
+        WorkingDir: cwd || undefined,
+        AttachStdout: true,
+        AttachStderr: true,
+      });
+    } catch (err) {
+      if (!destroyed) onError(err);
+      return;
+    }
+
+    exec.start({ hijack: true, stdin: false }, (err, s) => {
+      if (err) { if (!destroyed) onError(err); return; }
+      if (destroyed) { try { s.destroy(); } catch { /* ignore */ } return; }
+
+      stream = s;
+
+      docker.modem.demuxStream(
+        stream,
+        { write: (chunk) => { if (!destroyed) onStdout(chunk); } },
+        { write: (chunk) => { if (!destroyed) onStderr(chunk); } }
+      );
+
+      stream.on("end", async () => {
+        if (destroyed) return;
+        let exitCode = null;
+        try {
+          const info = await exec.inspect();
+          exitCode = info?.ExitCode ?? null;
+        } catch { /* inspect 실패 시 null */ }
+        onDone(exitCode);
+      });
+
+      stream.on("error", (e) => { if (!destroyed) onError(e); });
+    });
+  })();
+
+  return handle;
+}
+
 // 컨테이너 내부에서 POSIX sh glob으로 탭 완성 후보 목록을 반환한다.
 // partial을 argv[1]($1)로 전달하여 셸 인젝션을 방지한다.
 // alpine(ash), debian(dash) 등 모든 Unix 컨테이너에서 동작한다.
@@ -604,4 +667,5 @@ module.exports = {
   getComposeLogs,
   runContainerExec,
   runContainerComplete,
+  runContainerExecStream,
 };

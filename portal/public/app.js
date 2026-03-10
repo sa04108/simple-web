@@ -56,14 +56,15 @@ import {
   updateAuthUi,
 } from "./app-ui.js";
 import {
+  closeExecSocket,
   handleTabCompletion,
   historyBack,
   historyForward,
   initExecCwd,
+  openExecSocket,
   resetExecForApp,
   resetTabCompletionState,
   runExecCommand,
-  setExecApiHandlers,
 } from "./app-exec.js";
 import {
   addCustomDomain,
@@ -111,12 +112,14 @@ configureUiHandlers({
   loadDetailLogs,
   loadDetailDomains,
   resetExecForApp,
+  closeExecSocket,
   retryAllAlertJobs: async (alertJobs) => {
     for (const job of alertJobs) {
-      await retryJob(job.id).catch(() => {});
+      await retryJob(job.id).catch(() => { });
     }
   },
 });
+
 
 el.appnameInput.addEventListener("input", () => {
   clearCreateFieldFeedback(el.appnameInput);
@@ -152,16 +155,21 @@ el.gnbOverlay.addEventListener("click", closeMobileMenu);
 
 // ── 앱 관리 서브 GNB ─────────────────────────────────────────────────────────
 
-el.appDetailBackBtn.addEventListener("click", () => switchView("dashboard"));
+el.appDetailBackBtn.addEventListener("click", () => {
+  closeExecSocket();
+  switchView("dashboard");
+});
 
 el.detailTabBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
     const tab = btn.dataset.detailTab;
     switchDetailTab(tab);
-    if (tab === "logs"     && state.selectedApp) loadDetailLogs().catch(handleRequestError);
-    if (tab === "exec"     && state.selectedApp) initExecCwd().catch(() => {});
+    if (tab === "logs" && state.selectedApp) loadDetailLogs().catch(handleRequestError);
+    if (tab === "exec" && state.selectedApp) { openExecSocket(); initExecCwd().catch(() => { }); }
     if (tab === "settings" && state.selectedApp) loadDetailEnv().catch(handleRequestError);
-    if (tab === "domains"  && state.selectedApp) loadDetailDomains().catch(handleRequestError);
+    if (tab === "domains" && state.selectedApp) loadDetailDomains().catch(handleRequestError);
+    // exec 외 탭으로 전환 시 소켓 해제
+    if (tab !== "exec") closeExecSocket();
   });
 });
 
@@ -230,7 +238,7 @@ el.detailPanelDomains.addEventListener("click", async (event) => {
     if (!cname) return;
     navigator.clipboard.writeText(cname).then(() => {
       showToast("CNAME 타겟 복사 완료", "success");
-    }).catch(() => {});
+    }).catch(() => { });
     return;
   }
 
@@ -331,8 +339,8 @@ el.passwordForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   setSettingsError("");
   try {
-    const currentPassword    = el.currentPasswordInput.value;
-    const newPassword        = el.newPasswordInput.value;
+    const currentPassword = el.currentPasswordInput.value;
+    const newPassword = el.newPasswordInput.value;
     const newPasswordConfirm = el.newPasswordConfirmInput.value;
     if (newPassword !== newPasswordConfirm) {
       setSettingsError("새 비밀번호와 비밀번호 확인이 일치하지 않습니다.");
@@ -344,8 +352,8 @@ el.passwordForm.addEventListener("submit", async (event) => {
       body: JSON.stringify({ currentPassword, newPassword }),
     });
     state.user = data.user || null;
-    el.currentPasswordInput.value    = "";
-    el.newPasswordInput.value        = "";
+    el.currentPasswordInput.value = "";
+    el.newPasswordInput.value = "";
     el.newPasswordConfirmInput.value = "";
     updateAuthUi();
     closeSettingsModal();
@@ -463,10 +471,10 @@ el.createUserForm.addEventListener("submit", async (event) => {
     setCreateUserError("관리자 계정에서만 사용자 추가가 가능합니다.");
     return;
   }
-  const username        = el.createUsernameInput.value.trim();
-  const password        = el.createPasswordInput.value;
+  const username = el.createUsernameInput.value.trim();
+  const password = el.createPasswordInput.value;
   const passwordConfirm = el.createPasswordConfirmInput.value;
-  const roleValue       = el.createUserRoleInput.value;
+  const roleValue = el.createUserRoleInput.value;
   if (!username || !password || !passwordConfirm) {
     setCreateUserError("username, password, password confirm을 입력하세요.");
     return;
@@ -681,12 +689,12 @@ el.copyJobLogBtn.addEventListener("click", async () => {
 // 열린 모달 중 우선순위(promoteAdmin > deleteUser > createUser > settings) 순서로 닫는다.
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape" && event.key !== "Esc") return;
-  if (!el.promoteAdminModal.hidden) { closePromoteAdminModal();                  return; }
-  if (!el.addDomainModal.hidden)    { closeAddDomainModal();                     return; }
-  if (!el.deleteUserModal.hidden)   { closeDeleteUserModal({ resetForm: true }); return; }
-  if (!el.createUserModal.hidden)   { closeCreateUserModal({ resetForm: true }); return; }
-  if (!el.settingsModal.hidden)     { closeSettingsModal();                      return; }
-  if (!el.jobListModal.hidden)      { closeJobListModal(); }
+  if (!el.promoteAdminModal.hidden) { closePromoteAdminModal(); return; }
+  if (!el.addDomainModal.hidden) { closeAddDomainModal(); return; }
+  if (!el.deleteUserModal.hidden) { closeDeleteUserModal({ resetForm: true }); return; }
+  if (!el.createUserModal.hidden) { closeCreateUserModal({ resetForm: true }); return; }
+  if (!el.settingsModal.hidden) { closeSettingsModal(); return; }
+  if (!el.jobListModal.hidden) { closeJobListModal(); }
 });
 
 // ── 부트스트랩 ────────────────────────────────────────────────────────────────
@@ -730,6 +738,9 @@ async function bootstrap() {
   }
   setBanner("\ub85c\uadf8\uc778 \uc0c1\ud0dc\uac00 \ud655\uc778\ub418\uc5c8\uc2b5\ub2c8\ub2e4.", "success");
 }
+
+// 페이지 언로드 시 소켓 정리
+window.addEventListener("beforeunload", () => closeExecSocket());
 
 bootstrap().catch((error) => {
   handleRequestError(error);
