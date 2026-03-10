@@ -33,7 +33,7 @@ const jobStore = require("./jobStore");
 const { createDomainManager } = require("./domainManager");
 const { WebSocketServer } = require("ws");
 const { createExecWsHandler, parseExecWsUrl } = require("./routes/exec-ws");
-const { findDockerApp, runContainerExecStream, runContainerComplete } = require("./appManager");
+const { findDockerApp, getDockerContainer } = require("./appManager");
 
 // ── authService 초기화 ────────────────────────────────────────────────────────
 
@@ -256,8 +256,7 @@ async function start() {
   const handleExecWs = createExecWsHandler({
     resolveSessionAuth: (req) => authService.resolveSessionAuth(req),
     findDockerApp,
-    runContainerExecStream,
-    runContainerComplete,
+    getDockerContainer,
   });
   wss.on("connection", handleExecWs);
 
@@ -280,6 +279,9 @@ async function start() {
       socket.destroy();
       return;
     }
+
+    // exec-ws.js가 재조회 없이 재사용할 수 있도록 req에 첨부한다.
+    req._wsAuth = auth;
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit("connection", ws, req);

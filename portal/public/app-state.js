@@ -142,10 +142,7 @@ export const el = {
 
   // Exec 탭
   detailExecClearBtn: document.getElementById("detail-exec-clear-btn"),
-  detailExecOutput: document.getElementById("detail-exec-output"),
-  detailExecInput: document.getElementById("detail-exec-input"),
-  detailExecRunBtn: document.getElementById("detail-exec-run-btn"),
-  detailExecPromptCwd: document.getElementById("detail-exec-prompt-cwd"),
+  detailExecTerminal: document.getElementById("detail-exec-terminal"),
 
   // Settings 탭 (환경변수)
   detailEnvTextarea: document.getElementById("detail-env-textarea"),

@@ -1729,105 +1729,22 @@ code {
 
 /* ── Exec terminal ── */
 
-.exec-terminal {
+.exec-terminal-container {
   background: #0a1622;
   border: 1px solid rgba(25, 68, 108, 0.28);
   border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 300px;
-}
-
-.exec-output {
-  flex: 1;
-  margin: 0;
-  min-height: 240px;
-  max-height: 560px;
-  overflow-y: auto;
-  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  color: #d8ecff;
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.exec-output .exec-cmd {
-  color: #7dd3fc;
-}
-
-.exec-output .exec-stdout {
-  color: #d8ecff;
-}
-
-.exec-output .exec-stderr {
-  color: #fca5a5;
-}
-
-.exec-input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  padding-top: 10px;
-  margin-top: 10px;
-}
-
-.exec-prompt {
-  color: #34d399;
-  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
-  font-size: 0.9rem;
-  flex-shrink: 0;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* Current working directory shown before the $ sign */
-.exec-prompt-cwd {
-  color: #5eead4;
-  font-size: 0.8rem;
-  max-width: 220px;
+  padding: 10px;
+  height: 480px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.exec-input {
-  flex: 1;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 0 !important;
-  padding: 0 !important;
-  box-shadow: none !important;
-  color: #e2f3ff !important;
-  font-family: "IBM Plex Mono", "JetBrains Mono", monospace !important;
-  font-size: 0.84rem !important;
-  outline: none !important;
+/* xterm.js 내부 요소가 컨테이너를 꽉 채우도록 */
+.exec-terminal-container .xterm {
+  height: 100%;
 }
 
-.exec-input::placeholder {
-  color: rgba(180, 210, 235, 0.38) !important;
-}
-
-.exec-input:focus {
-  transform: none !important;
-}
-
-/* Exec run button — brighter for legibility against the dark terminal background */
-#detail-exec-run-btn {
-  color: #c8e6ff;
-  background: rgba(42, 134, 241, 0.22);
-  border-color: rgba(42, 134, 241, 0.48);
-}
-
-#detail-exec-run-btn:hover {
-  color: #e8f4ff;
-  background: rgba(42, 134, 241, 0.34);
-  border-color: rgba(42, 134, 241, 0.62);
+.exec-terminal-container .xterm-viewport {
+  border-radius: 8px;
 }
 
 /* ── Settings (env vars) ── */

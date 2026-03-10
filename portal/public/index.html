@@ -11,6 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
         rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css?v=__APP_VERSION__" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.css" />
 </head>
 
 <body>
@@ -205,16 +206,7 @@
                         <h3>Exec</h3>
                         <button id="detail-exec-clear-btn" class="ghost-btn" type="button">Clear</button>
                     </div>
-                    <div class="exec-terminal">
-                        <pre id="detail-exec-output" class="exec-output"></pre>
-                        <div class="exec-input-row">
-                            <span class="exec-prompt" aria-hidden="true"><span id="detail-exec-prompt-cwd"
-                                    class="exec-prompt-cwd"></span>$</span>
-                            <input id="detail-exec-input" type="text" class="exec-input"
-                                placeholder="명령어를 입력하세요 (예: ls -la, env, ps)" autocomplete="off" spellcheck="false" />
-                            <button id="detail-exec-run-btn" class="action-btn" type="button">실행</button>
-                        </div>
-                    </div>
+                    <div id="detail-exec-terminal" class="exec-terminal-container"></div>
                 </section>
 
                 <!-- Domains panel -->
@@ -558,6 +550,8 @@
     </div>
 
     <!-- ES modules: app.js is the single entrypoint -->
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/lib/addon-fit.js"></script>
     <script type="module" src="./app.js?v=__APP_VERSION__"></script>
 </body>
 

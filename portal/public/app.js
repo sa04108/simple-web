@@ -56,15 +56,10 @@ import {
   updateAuthUi,
 } from "./app-ui.js";
 import {
+  clearExecTerminal,
   closeExecSocket,
-  handleTabCompletion,
-  historyBack,
-  historyForward,
-  initExecCwd,
   openExecSocket,
   resetExecForApp,
-  resetTabCompletionState,
-  runExecCommand,
 } from "./app-exec.js";
 import {
   addCustomDomain,
@@ -164,7 +159,7 @@ el.detailTabBtns.forEach((btn) => {
     const tab = btn.dataset.detailTab;
     switchDetailTab(tab);
     if (tab === "logs" && state.selectedApp) loadDetailLogs().catch(handleRequestError);
-    if (tab === "exec" && state.selectedApp) { openExecSocket(); initExecCwd().catch(() => { }); }
+    if (tab === "exec" && state.selectedApp) { openExecSocket(); }
     if (tab === "settings" && state.selectedApp) loadDetailEnv().catch(handleRequestError);
     if (tab === "domains" && state.selectedApp) loadDetailDomains().catch(handleRequestError);
     // exec 외 탭으로 전환 시 소켓 해제
@@ -272,44 +267,8 @@ el.detailRefreshLogsBtn.addEventListener("click", async () => {
 
 // ── Exec ──────────────────────────────────────────────────────────────────────
 
-el.detailExecRunBtn.addEventListener("click", async () => {
-  try {
-    await runExecCommand();
-  } catch (error) {
-    await handleRequestError(error);
-  }
-});
-
-el.detailExecInput.addEventListener("keydown", async (event) => {
-  // Tab 외 키 입력 시 탭 완성 상태를 리셋한다.
-  if (event.key !== "Tab") {
-    resetTabCompletionState();
-  }
-
-  switch (event.key) {
-    case "Enter":
-      event.preventDefault();
-      try { await runExecCommand(); } catch (err) { await handleRequestError(err); }
-      break;
-    case "ArrowUp":
-      event.preventDefault();
-      el.detailExecInput.value = historyBack(el.detailExecInput.value);
-      break;
-    case "ArrowDown": {
-      event.preventDefault();
-      const next = historyForward();
-      el.detailExecInput.value = next ?? "";
-      break;
-    }
-    case "Tab":
-      event.preventDefault();
-      await handleTabCompletion();
-      break;
-  }
-});
-
 el.detailExecClearBtn.addEventListener("click", () => {
-  el.detailExecOutput.innerHTML = "";
+  clearExecTerminal();
 });
 
 // ── Settings (env) ────────────────────────────────────────────────────────────

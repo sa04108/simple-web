@@ -668,4 +668,6 @@ module.exports = {
   runContainerExec,
   runContainerComplete,
   runContainerExecStream,
+  // dockerode Container 객체 직접 반환 (exec-ws에서 TTY exec용으로 사용)
+  getDockerContainer: (name) => docker.getContainer(name),
 };
