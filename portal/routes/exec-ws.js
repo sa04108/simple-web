@@ -23,6 +23,15 @@ const { ROLE_ADMIN } = require("../authService");
 
 const EXEC_WS_PATH = /^\/apps\/([^/]+)\/([^/]+)\/exec\/ws$/;
 const HEARTBEAT_MS = 30_000;
+const WS_REASON_MAX = 123;
+
+/** WS close reason을 123바이트 이내로 잘라낸다 (RFC 6455 제한). */
+function truncateReason(str) {
+    if (Buffer.byteLength(str) <= WS_REASON_MAX) return str;
+    const buf = Buffer.from(str);
+    // UTF-8 멀티바이트 문자가 잘리지 않도록 toString 이 안전하게 처리한다.
+    return buf.subarray(0, WS_REASON_MAX).toString("utf8");
+}
 
 /**
  * WS 업그레이드 요청에서 userid/appname 을 파싱한다.
@@ -73,7 +82,7 @@ function createExecWsHandler({ resolveSessionAuth, findDockerApp, getDockerConta
         try {
             app = await findDockerApp(userid, appname);
         } catch (err) {
-            ws.close(1011, err.message || "Failed to find app");
+            ws.close(1011, truncateReason(err.message || "Failed to find app"));
             return;
         }
         if (!app?.containerName) {
@@ -106,7 +115,7 @@ function createExecWsHandler({ resolveSessionAuth, findDockerApp, getDockerConta
                 );
             });
         } catch (err) {
-            ws.close(1011, "Exec failed: " + err.message);
+            ws.close(1011, truncateReason("Exec failed: " + err.message));
             return;
         }
 
